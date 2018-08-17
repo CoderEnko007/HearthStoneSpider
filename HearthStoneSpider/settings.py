@@ -68,7 +68,7 @@ DOWNLOADER_MIDDLEWARES = {
 # See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
    # 'HearthStoneSpider.pipelines.CardImagesPipeline': 1,
-   'HearthStoneSpider.pipelines.MysqlTwistedPipeline': 2,
+   # 'HearthStoneSpider.pipelines.MysqlTwistedPipeline': 2,
    'HearthStoneSpider.pipelines.JsonExporterPipeline': 1,
 }
 IMAGES_URLS_FIELD = 'img' # 配置下载图片的地址
@@ -94,9 +94,11 @@ IMAGES_STORE = os.path.join(project_dir, "images") # 配置图片存储的位置
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
-MYSQL_HOST = '127.0.0.1'
+# MYSQL_HOST = '127.0.0.1'
+MYSQL_HOST = '47.98.187.217'
 MYSQL_DBNAME = 'hearthstonestation'
 MYSQL_USER = 'root'
-MYSQL_PWD = ''
+MYSQL_PWD = '666666'
+# MYSQL_PWD = ''
 
 SQL_DATETIME_FORMAT = "%Y-%m-%d"

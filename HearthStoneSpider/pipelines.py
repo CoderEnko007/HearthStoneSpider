@@ -5,6 +5,8 @@
 # Don"t forget to add your pipeline to the ITEM_PIPELINES setting
 # See: https://doc.scrapy.org/en/latest/topics/item-pipeline.html
 import os
+import codecs
+import json
 
 from twisted.enterprise import adbapi
 from scrapy.pipelines.images import ImagesPipeline
@@ -13,10 +15,6 @@ from scrapy.exporters import JsonItemExporter
 
 import MySQLdb
 import MySQLdb.cursors
-
-# class HearthstonespiderPipeline(object):
-#     def process_item(self, item, spider):
-#         return item
 
 class MysqlTwistedPipeline(object):
     def __init__(self, dbpool):
@@ -108,63 +106,7 @@ class MysqlTwistedPipeline(object):
             """
             cursor.execute(insert_sql, (mana, hp, attack, cname, description, ename, faction, clazz, race, img, rarity, rule, series_id, mode, thumbnail))
 
-class MysqlPipeline(object):
-    # 采用同步的机制写入mysql
-    def __init__(self):
-        self.conn = MySQLdb.connect("127.0.0.1", "root", "", "hearthstonestation", charset="utf8", use_unicode=True)
-        self.cursor = self.conn.cursor()
-        self.RARITY_TYPE = {'1': '基本', '2': '普通', '3': '稀有', '4': '史诗', '5': '传说'}
-        self.SERIES_TYPE = {'1':'BASIC', '2':'NAXX', '3':'GVG', '4':'BRM', '5':'TGT', '6':'LOE', '7':'WOG',
-                            '8':'ONK', '9':'MSG', '10':'JUG', '11':'KFT', '12':'KNC', '13':'TWW', '14':'TBP'}
-
-    def get_key(self, dict, value):
-        return [k for k, v in dict.items() if v == value]
-
-    def process_item(self, item, spider):
-        if (item["mana"] < 0):
-            return
-        mana = item['mana']
-        hp = item['hp']
-        attack = item['attack']
-        cname = item['cname']
-        ename = item['ename']
-        description = item['description']
-        faction = item['faction']
-        clazz = item['clazz']
-        race = item['race']
-        rule = item['rule']
-        img = item['img'][0]
-        thumbnail = item['thumbnail'][0]
-
-        rarity = self.get_key(self.RARITY_TYPE, item['rarity'])[0]
-        series_id = self.get_key(self.SERIES_TYPE, item['seriesAbbr'].upper())[0]
-        if (item['standard'] == 0 and item['wild'] == 1):
-            mode = 'Wild'
-        elif (item['standard']):
-            mode = 'Standard'
-        else:
-            mode = 'None'
-
-        try:
-            select_sql = """SELECT * FROM cards_cards WHERE cname=%r """ % cname
-            res = self.cursor.execute(select_sql)
-            if (res):
-                # 数据库已有该记录则更新
-                update_sql = "update cards_cards set mana=%d, hp=%d, attack=%d, description=%r, ename=%r, faction=%r, clazz=%r, race=%r, img=%r, rarity=%s, " \
-                             "rule=%r, series_id=%s, mode=%r, thumbnail=%r where cname=%r"\
-                             % (mana, hp, attack, description, ename, faction, clazz, race, img, rarity, rule, series_id, mode, thumbnail, cname)
-                self.cursor.execute(update_sql)
-                self.conn.commit()
-            else:
-                insert_sql = """
-                    insert into cards_cards(mana, hp, attack, cname, description, ename, faction, clazz, race, img, rarity, rule, series_id, mode, thumbnail)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                self.cursor.execute(insert_sql, (mana, hp, attack, cname, description, ename, faction, clazz, race, img, rarity, rule, series_id, mode, thumbnail))
-                self.conn.commit()
-        except Exception as e:
-            print(e)
-
+# 下载图片的pipeline
 class CardImagesPipeline(ImagesPipeline):
     def check_transparency(self, path):
         root, ext = os.path.splitext(path)
@@ -205,10 +147,11 @@ class CardImagesPipeline(ImagesPipeline):
         img_guid = request.url.split("/")[-3]+"-"+request.url.split("/")[-1]
         return "full/%s" % (img_guid)
 
+# 将爬取的数据导出到JSON文件，用于测试数据
 class JsonExporterPipeline(object):
     # 调用scrapy提供的JsonExporter导出JSON文件
     def __init__(self):
-        self.file = open('HSDecks_exporter.json', 'wb')
+        self.file = open('HSDecks.json', 'wb')
         self.exporter = JsonItemExporter(self.file, encoding='utf-8', ensure_ascii=False)
         self.exporter.start_exporting()
     def process_item(self, item, spider):
@@ -216,4 +159,20 @@ class JsonExporterPipeline(object):
         return item
     def spider_closed(self, spider):
         self.exporter.finish_exporting()
+        self.file.close()
+
+class JsonWithEncodingPipeline(object):
+    # 自定义json文件的导出
+    def __init__(self):
+        # 使用codecs打开避免一些编码问题。
+        self.file = codecs.open('hsDecks.json', 'w', encoding="utf-8")
+
+    def process_item(self, item, spider):
+        # 将item转换为dict,然后调用dumps方法生成json对象，false避免中文出错
+        lines = json.dumps(dict(item), ensure_ascii=False) + "\n"
+        self.file.write(lines)
+        return item
+
+    # 当spider关闭的时候: 这是一个spider_closed的信号量。
+    def spider_closed(self, spider):
         self.file.close()

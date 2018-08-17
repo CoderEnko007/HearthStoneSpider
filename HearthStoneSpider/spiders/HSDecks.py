@@ -6,7 +6,6 @@ from urllib import parse
 from selenium import webdriver
 from scrapy import signals
 from scrapy.xlib.pydispatch import dispatcher
-from scrapy import Selector
 from scrapy.http import Request
 
 from HearthStoneSpider.items import HSDecksSpiderItem
@@ -20,11 +19,10 @@ class HSDecksSpider(scrapy.Spider):
     def __init__(self):
         super(HSDecksSpider, self).__init__()
         chrome_opt = webdriver.ChromeOptions()
-        prefs = {"profile.managed_default_content_settings.images": 2}
-        chrome_opt.add_experimental_option("prefs", prefs)  # 无图模式
-        # chrome_opt.add_argument('--headless')  # 无页面模式
-        self.browser = webdriver.Chrome(executable_path='E:/web_workspace/web_scraper/tools/chromedriver.exe',
-                                        chrome_options=chrome_opt)
+        chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
+        chrome_opt.add_argument('--disable-gpu')
+        chrome_opt.add_argument('--headless')  # 无页面模式
+        self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
 
     def spider_closed(self):

@@ -6,7 +6,6 @@ import time
 from selenium import webdriver
 from scrapy.xlib.pydispatch import dispatcher
 from scrapy import signals
-from scrapy.selector import Selector
 
 from HearthStoneSpider.items import HSReportSpiderItem
 from HearthStoneSpider.settings import SQL_DATETIME_FORMAT
@@ -19,10 +18,9 @@ class HSReportSpider(scrapy.Spider):
     def __init__(self):
         super(HSReportSpider, self).__init__()
         chrome_opt = webdriver.ChromeOptions()
-        prefs = {"profile.managed_default_content_settings.images": 2}
-        chrome_opt.add_experimental_option("prefs", prefs) # 无图模式
+        chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         chrome_opt.add_argument('--headless') # 无页面模式
-        self.browser = webdriver.Chrome(executable_path='E:/web_workspace/web_scraper/tools/chromedriver.exe', chrome_options=chrome_opt)
+        self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed) # scrapy信号量，spider退出时关闭browser
 
     def spider_closed(self):
@@ -35,8 +33,7 @@ class HSReportSpider(scrapy.Spider):
             btn.click()
             time.sleep(3)
             print(btn.text)
-            t_selector = Selector(text=self.browser.page_source)
-            rank_node = t_selector.css('ul.class-list.class-ranking li')
+            rank_node = response.css('ul.class-list.class-ranking li')
             for item in rank_node:
                 hs_item = HSReportSpiderItem()
                 index = item.css('.class-index::text').extract_first(' ')
