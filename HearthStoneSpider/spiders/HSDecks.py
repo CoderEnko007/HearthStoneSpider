@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 import scrapy
-import time
+import datetime
+import json
 import re
 from urllib import parse
 from selenium import webdriver
 from scrapy import signals
-from scrapy.xlib.pydispatch import dispatcher
+from pydispatch import dispatcher
 from scrapy.http import Request
 
 from HearthStoneSpider.items import HSDecksSpiderItem
+from HearthStoneSpider.tools.utils import reMatchFormat
+from HearthStoneSpider.settings import SQL_DATETIME_FORMAT
 
 
 class HSDecksSpider(scrapy.Spider):
@@ -29,19 +32,22 @@ class HSDecksSpider(scrapy.Spider):
         self.browser.close()
 
     def parse(self, response):
-        # page_nums = response.css('div.paging.paging-top ul.pagination li')[-3].css('a::text').extract_first(' ')
-        # for i in range(int(page_nums)+1):
         deck_nodes = response.css('div.deck-list>ul>li')[1:]
         for item in deck_nodes:
-            temp = item.css('a::attr(href)').extract_first('')
-            deck_id = re.match('\/.*\/(.*)\/', temp).group(1)
-            faction = item.css('div.deck-tile::attr(data-card-class)').extract_first('')
+            deck_id = item.css('a::attr(href)').extract_first('')
+            deck_id = reMatchFormat('\/.*\/(.*)\/', deck_id.strip())
+            faction = item.css('div.deck-tile::attr(data-card-class)').extract_first('').capitalize()
             deck_name = item.css('div.deck-tile span.deck-name::text').extract_first('')
             dust_cost = item.css('div.deck-tile span.dust-cost::text').extract_first('')
             win_rate = item.css('div.deck-tile span.win-rate::text').extract_first('')
+            win_rate = re.findall('\d+', win_rate)
+            win_rate = '.'.join(win_rate)
             game_count = item.css('div.deck-tile span.game-count::text').extract_first('')
+            game_count = game_count.replace(',', '')
             duration = item.css('div.deck-tile div.duration::text').extract_first('')
-            background_img = re.match('.*url\(\"(https.*)\"\)', item.css('li::attr(style)').extract_first()).group(1)
+            duration = reMatchFormat('.*?(\d*\.?\d*).*', duration.strip())
+            background_img = item.css('li::attr(style)').extract_first('')
+            background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)
             url = parse.urljoin(response.url, '/decks/{}'.format(deck_id))
             print(url)
             yield Request(url=url, meta={
@@ -64,10 +70,35 @@ class HSDecksSpider(scrapy.Spider):
         hs_item['deck_id'] = response.meta.get('deck_id', ' ')
         hs_item['faction'] = response.meta.get('faction', ' ')
         hs_item['deck_name'] = response.meta.get('deck_name', ' ')
-        hs_item['dust_cost'] = response.meta.get('dust_cost', ' ')
-        hs_item['win_rate'] = response.meta.get('win_rate', ' ')
-        hs_item['game_count'] = response.meta.get('game_count', ' ')
-        hs_item['duration'] = response.meta.get('duration', ' ')
+        hs_item['dust_cost'] = int(response.meta.get('dust_cost', ' '))
+        hs_item['win_rate'] = float(response.meta.get('win_rate', ' '))
+        hs_item['game_count'] = int(response.meta.get('game_count', ' '))
+        hs_item['duration'] = float(response.meta.get('duration', ' '))
         hs_item['background_img'] = response.meta.get('background_img', ' ')
         print(response.meta)
+
+        card_list_items = response.css('#overview div.card-list-wrapper ul.card-list div.tooltip-wrapper div.card-tile')
+        card_list = []
+        for item in card_list_items:
+            card_cost = item.css('span.card-cost::text').extract_first('')
+            card_asset = item.css('div.card-frame img.card-asset::attr(src)').extract_first('')
+            card_count = item.css('span.card-count::text').extract_first('')
+            # card_count = re.findall('\d+', card_count)
+            card_name = item.css('span.card-name::text').extract_first('')
+            card_list.append({'name': card_name, 'cost': card_cost, 'count': card_count, 'img': card_asset})
+        hs_item['card_list'] = json.dumps(card_list, indent=4, ensure_ascii=False)
+
+        turns = response.css('table.table-striped tbody tr')[1].css('td::text').extract()
+        hs_item['turns'] = float(turns[1])
+        win_rate_nodes = response.css('table.table-striped tbody tr')
+        faction_win_rate = []
+        for item in win_rate_nodes[4:]:
+            faction_str = item.css('td span.player-class::attr(class)').extract_first('')
+            faction = reMatchFormat('.* (\w*)$', faction_str.strip()).capitalize()
+            win_rate = item.css('td.winrate-cell::text').extract_first('')
+            win_rate = re.findall('\d+', win_rate)
+            win_rate = '.'.join(win_rate)
+            faction_win_rate.append({'faction': faction, 'win_rate': win_rate})
+        hs_item['faction_win_rate'] = json.dumps(faction_win_rate, indent=4)
+        hs_item['date'] = datetime.datetime.now().strftime(SQL_DATETIME_FORMAT)
         yield hs_item

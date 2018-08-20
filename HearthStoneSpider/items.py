@@ -53,3 +53,27 @@ class HSDecksSpiderItem(scrapy.Item):
     game_count = scrapy.Field() # 总对局数
     duration = scrapy.Field() # 对局时长
     background_img = scrapy.Field() # 背景图
+
+    card_list = scrapy.Field() # 卡组套牌
+    turns = scrapy.Field() # 回合数
+    faction_win_rate = scrapy.Field() # 各职业对战胜率
+    date = scrapy.Field() # 日期
+
+class HSArchetypeSpiderItem(scrapy.Item):
+    tier = scrapy.Field() # 梯队
+    archetype_name = scrapy.Field() # 卡组模板名称
+    win_rate = scrapy.Field() # 胜率
+    game_count = scrapy.Field() # 对局数
+    popularity = scrapy.Field() # 热度
+    best_matchup = scrapy.Field() # 最优对局
+    worst_matchup = scrapy.Field() # 最劣对局
+    core_cards = scrapy.Field() # 核心卡牌
+    pop_cards = scrapy.Field() # 热门卡牌
+    matchup = scrapy.Field() # 各职业胜率
+
+class HSWinRateSpiderItem(scrapy.Item):
+    faction = scrapy.Field() # 职业
+    archetype  = scrapy.Field() # 套牌类型
+    winrate  = scrapy.Field() # 胜率
+    popularity  = scrapy.Field() # 热度
+    games  = scrapy.Field() # 对局数

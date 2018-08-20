@@ -5,8 +5,6 @@
 # Don"t forget to add your pipeline to the ITEM_PIPELINES setting
 # See: https://doc.scrapy.org/en/latest/topics/item-pipeline.html
 import os
-import codecs
-import json
 
 from twisted.enterprise import adbapi
 from scrapy.pipelines.images import ImagesPipeline
@@ -46,22 +44,43 @@ class MysqlTwistedPipeline(object):
 
     def process_item(self, item, spider):
         # 使用twisted将mysql插入变成异步执行
+        global query
         if spider.name=='HearthStone':
             query = self.dbpool.runInteraction(self.update_cards, item)
         elif spider.name=='HSReport':
             query = self.dbpool.runInteraction(self.update_rank, item)
-        query.addErrback(self.handle_err)
+        elif spider.name=='HSDecks':
+            query = self.dbpool.runInteraction(self.update_decks, item)
+        if query is not None:
+            query.addErrback(self.handle_err)
 
     def handle_err(self, failure):
         # 处理异步插入的异常
         print(failure)
 
+    def update_decks(self, cursor, item):
+        select_sql = """SELECT * FROM decks_decks WHERE deck_id=%r """ % item['deck_id']
+        res = cursor.execute(select_sql)
+        if res>0:
+            update_sql = "update decks_decks set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%f, game_count=%d, duration=%f, background_img=%r," \
+                         " card_list=%r, turns=%d, faction_win_rate=%r, create_time=%r where deck_id=%r" \
+                         % (item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['duration'],
+                            item['background_img'], item['card_list'], item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
+            cursor.execute(update_sql)
+
+        else:
+            insert_sql = """
+                insert into decks_decks(deck_id, faction, deck_name, dust_cost, win_rate, game_count, duration, background_img, card_list, turns, faction_win_rate, create_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_sql,(item['deck_id'], item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['duration'],
+                                       item['background_img'], item['card_list'], item['turns'], item['faction_win_rate'], item['date']))
+
+
     # 爬取HSReplay.net中的rank信息
     def update_rank(self, cursor, item):
-        print(item['date'])
         insert_sql = "insert into rank_hsranking (mode, rank_no, name, winrate, report_time) VALUES (%r, %d, %r, %r, %r)" \
                      % (item['mode'], item['rank_no'], item['name'], item['winrate'], item['date'])
-        print(insert_sql)
         cursor.execute(insert_sql)
 
     # 从旅法师营地爬取所有卡牌信息
@@ -91,7 +110,7 @@ class MysqlTwistedPipeline(object):
         else:
             mode = 'None'
 
-        select_sql = """SELECT * FROM cards_cards WHERE cname=%r """ % cname
+        select_sql = "SELECT * FROM cards_cards WHERE cname=%r " % cname
         res = cursor.execute(select_sql)
         if (res):
             # 数据库已有该记录则更新
@@ -151,7 +170,7 @@ class CardImagesPipeline(ImagesPipeline):
 class JsonExporterPipeline(object):
     # 调用scrapy提供的JsonExporter导出JSON文件
     def __init__(self):
-        self.file = open('HSDecks.json', 'wb')
+        self.file = open('HSWinRate.json', 'wb')
         self.exporter = JsonItemExporter(self.file, encoding='utf-8', ensure_ascii=False)
         self.exporter.start_exporting()
     def process_item(self, item, spider):
@@ -159,20 +178,4 @@ class JsonExporterPipeline(object):
         return item
     def spider_closed(self, spider):
         self.exporter.finish_exporting()
-        self.file.close()
-
-class JsonWithEncodingPipeline(object):
-    # 自定义json文件的导出
-    def __init__(self):
-        # 使用codecs打开避免一些编码问题。
-        self.file = codecs.open('hsDecks.json', 'w', encoding="utf-8")
-
-    def process_item(self, item, spider):
-        # 将item转换为dict,然后调用dumps方法生成json对象，false避免中文出错
-        lines = json.dumps(dict(item), ensure_ascii=False) + "\n"
-        self.file.write(lines)
-        return item
-
-    # 当spider关闭的时候: 这是一个spider_closed的信号量。
-    def spider_closed(self, spider):
         self.file.close()
