@@ -170,7 +170,7 @@ class CardImagesPipeline(ImagesPipeline):
 class JsonExporterPipeline(object):
     # 调用scrapy提供的JsonExporter导出JSON文件
     def __init__(self):
-        self.file = open('HSWinRate.json', 'wb')
+        self.file = open('HSArchetype.json', 'wb')
         self.exporter = JsonItemExporter(self.file, encoding='utf-8', ensure_ascii=False)
         self.exporter.start_exporting()
     def process_item(self, item, spider):

@@ -61,6 +61,7 @@ class HSDecksSpiderItem(scrapy.Item):
 
 class HSArchetypeSpiderItem(scrapy.Item):
     tier = scrapy.Field() # 梯队
+    faction = scrapy.Field() # 职业
     archetype_name = scrapy.Field() # 卡组模板名称
     win_rate = scrapy.Field() # 胜率
     game_count = scrapy.Field() # 对局数

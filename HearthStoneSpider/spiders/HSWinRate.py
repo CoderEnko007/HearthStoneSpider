@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import scrapy
+import re
 from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy import signals
@@ -29,7 +30,6 @@ class HSWinRateSpider(scrapy.Spider):
         for box in faction_boxes:
             faction = box.css('div.box-title span.player-class::text').extract_first('')
             archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
-            # print('archetype_list: ', archetype_list)
             data_cells = box.css('div.grid-container')[3].css('a.table-cell::text').extract()
             data_list = []
             list = []
@@ -39,13 +39,14 @@ class HSWinRateSpider(scrapy.Spider):
                     data_list.append(list)
                     list = []
                     continue
-            # print('data_list: ', data_list)
             for i, archetype in enumerate(archetype_list):
                 hs_item = HSWinRateSpiderItem()
                 hs_item['faction'] = faction
                 hs_item['archetype'] = archetype
-                hs_item['winrate'] = data_list[i][0]
-                hs_item['popularity'] = data_list[i][1]
-                hs_item['games'] = data_list[i][2]
+                win_rate = re.findall('\d+', data_list[i][0])
+                hs_item['winrate'] = '.'.join(win_rate)
+                popularity = re.findall('\d+', data_list[i][1])
+                hs_item['popularity'] = '.'.join(popularity)
+                hs_item['games'] = data_list[i][2].replace(',', '')
                 print(hs_item)
                 yield hs_item
