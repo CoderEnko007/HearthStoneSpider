@@ -51,15 +51,52 @@ class MysqlTwistedPipeline(object):
             query = self.dbpool.runInteraction(self.update_rank, item)
         elif spider.name=='HSDecks':
             query = self.dbpool.runInteraction(self.update_decks, item)
+        elif spider.name=='HSWinRate':
+            query = self.dbpool.runInteraction(self.update_winrate, item)
+        elif spider.name=='HSArchetype':
+            query = self.dbpool.runInteraction(self.update_archetype, item)
         if query is not None:
             query.addErrback(self.handle_err)
 
     def handle_err(self, failure):
         # 处理异步插入的异常
-        print(failure)
+        print('错误:', failure)
+
+    def update_archetype(self, cursor, item):
+        select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND to_days(update_time)=to_days(now())" % item['archetype_name']
+        res = cursor.execute(select_sql)
+        # print('测试：', item['archetype_name'], res)
+        if res>0:
+            update_sql = "update archetype_archetype set tier=%r, faction=%r, win_rate=%f, game_count=%d, popularity=%f, best_matchup=%r, worst_matchup=%r," \
+                         " core_cards=%r, pop_cards=%r, matchup=%r, update_time=%r where archetype_name=%r AND to_days(update_time)=to_days(now())"\
+                         % (item['tier'], item['faction'], item['win_rate'], item['game_count'], item['popularity'], item['best_matchup'], item['worst_matchup'],\
+                         item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['archetype_name'])
+            cursor.execute(update_sql)
+        else:
+            insert_sql = """
+                insert into archetype_archetype(tier, faction, archetype_name, win_rate, game_count, popularity, best_matchup, worst_matchup, core_cards, pop_cards, matchup, update_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_sql, (item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'],
+                                        item['best_matchup'], item['worst_matchup'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
+
+    def update_winrate(self, cursor, item):
+        select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
+                     % (item['faction'], item['archetype'])
+        res = cursor.execute(select_sql)
+        if res > 0:
+            update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, create_time=%r where faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+                         % (item['winrate'], item['popularity'], item['games'], item['date'], item['faction'], item['archetype'])
+            cursor.execute(update_sql)
+        else:
+            insert_sql = """
+                insert into winrate_hswinrate(faction, archetype, winrate, popularity, games, create_time)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_sql, (item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['date']))
 
     def update_decks(self, cursor, item):
-        select_sql = """SELECT * FROM decks_decks WHERE deck_id=%r """ % item['deck_id']
+        select_sql = "SELECT * FROM decks_decks WHERE deck_id=%r" % item['deck_id']
         res = cursor.execute(select_sql)
         if res>0:
             update_sql = "update decks_decks set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%f, game_count=%d, duration=%f, background_img=%r," \
@@ -79,27 +116,23 @@ class MysqlTwistedPipeline(object):
 
     # 爬取HSReplay.net中的rank信息
     def update_rank(self, cursor, item):
-        insert_sql = "insert into rank_hsranking (mode, rank_no, name, winrate, report_time) VALUES (%r, %d, %r, %r, %r)" \
-                     % (item['mode'], item['rank_no'], item['name'], item['winrate'], item['date'])
-        cursor.execute(insert_sql)
+        select_sql = "SELECT * FROM rank_hsranking WHERE mode=%r AND name=%r AND to_days(report_time)=to_days(now())" % (item['mode'], item['name'])
+        res = cursor.execute(select_sql)
+        if res > 0:
+            update_sql = "update rank_hsranking set rank_no=%d, winrate=%r, report_time=%r where mode=%r AND name=%r AND to_days(report_time)=to_days(now())" \
+                         % (item['rank_no'], item['winrate'], item['date'], item['mode'], item['name'])
+            cursor.execute(update_sql)
+        else:
+            insert_sql = "insert into rank_hsranking (mode, rank_no, name, winrate, report_time) VALUES (%r, %d, %r, %r, %r)" \
+                         % (item['mode'], item['rank_no'], item['name'], item['winrate'], item['date'])
+            cursor.execute(insert_sql)
 
     # 从旅法师营地爬取所有卡牌信息
     def update_cards(self, cursor, item):
         if (item["mana"] < 0):
             return
-        mana = item['mana']
-        hp = item['hp']
-        attack = item['attack']
-        cname = item['cname']
-        ename = item['ename']
-        description = item['description']
-        faction = item['faction']
-        clazz = item['clazz']
-        race = item['race']
-        rule = item['rule']
         img = item['img'][0]
         thumbnail = item['thumbnail'][0]
-
         rarity = self.get_key(self.RARITY_TYPE, item['rarity'])[0]
         series_id = self.get_key(self.SERIES_TYPE, item['seriesAbbr'].upper())[0]
         clazz = self.get_key(self.CLAZZ_TYPE, item['clazz'])[0]
@@ -110,20 +143,20 @@ class MysqlTwistedPipeline(object):
         else:
             mode = 'None'
 
-        select_sql = "SELECT * FROM cards_cards WHERE cname=%r " % cname
+        select_sql = "SELECT * FROM cards_cards WHERE cname=%r " % item['cname']
         res = cursor.execute(select_sql)
         if (res):
             # 数据库已有该记录则更新
             update_sql = "update cards_cards set mana=%d, hp=%d, attack=%d, description=%r, ename=%r, faction=%r, clazz=%r, race=%r, img=%r, rarity=%s, " \
                          "rule=%r, series_id=%s, mode=%r, thumbnail=%r where cname=%r" \
-                         % (mana, hp, attack, description, ename, faction, clazz, race, img, rarity, rule, series_id, mode, thumbnail, cname)
+                         % (item['mana'], item['hp'], item['attack'], item['description'], item['ename'], item['faction'], clazz, item['race'], img, rarity, item['rule'], series_id, mode, thumbnail, item['cname'])
             cursor.execute(update_sql)
         else:
             insert_sql = """
                 insert into cards_cards(mana, hp, attack, cname, description, ename, faction, clazz, race, img, rarity, rule, series_id, mode, thumbnail)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_sql, (mana, hp, attack, cname, description, ename, faction, clazz, race, img, rarity, rule, series_id, mode, thumbnail))
+            cursor.execute(insert_sql, (item['mana'], item['hp'], item['attack'], item['cname'], item['description'], item['ename'], item['faction'], clazz, item['race'], img, rarity, item['rule'], series_id, mode, thumbnail))
 
 # 下载图片的pipeline
 class CardImagesPipeline(ImagesPipeline):
@@ -170,7 +203,7 @@ class CardImagesPipeline(ImagesPipeline):
 class JsonExporterPipeline(object):
     # 调用scrapy提供的JsonExporter导出JSON文件
     def __init__(self):
-        self.file = open('HSArchetype.json', 'wb')
+        self.file = open('winrate.json', 'wb')
         self.exporter = JsonItemExporter(self.file, encoding='utf-8', ensure_ascii=False)
         self.exporter.start_exporting()
     def process_item(self, item, spider):

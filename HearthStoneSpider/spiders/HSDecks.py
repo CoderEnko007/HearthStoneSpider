@@ -11,7 +11,7 @@ from scrapy.http import Request
 
 from HearthStoneSpider.items import HSDecksSpiderItem
 from HearthStoneSpider.tools.utils import reMatchFormat
-from HearthStoneSpider.settings import SQL_DATETIME_FORMAT
+from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
 
 
 class HSDecksSpider(scrapy.Spider):
@@ -29,7 +29,8 @@ class HSDecksSpider(scrapy.Spider):
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
 
     def spider_closed(self):
-        self.browser.close()
+        print('HSDecks end')
+        self.browser.quit()
 
     def parse(self, response):
         deck_nodes = response.css('div.deck-list>ul>li')[1:]
@@ -49,7 +50,6 @@ class HSDecksSpider(scrapy.Spider):
             background_img = item.css('li::attr(style)').extract_first('')
             background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)
             url = parse.urljoin(response.url, '/decks/{}'.format(deck_id))
-            print(url)
             yield Request(url=url, meta={
                 'deck_id': deck_id,
                 'faction': faction,
@@ -61,9 +61,11 @@ class HSDecksSpider(scrapy.Spider):
                 'background_img': background_img
             }, callback=self.parse_detail, dont_filter=True)
 
-        next_page = response.css('div.paging.paging-top ul.pagination li')[-1].css('a::attr(href)').extract_first()
-        next_url = 'https://hsreplay.net/decks/{}'.format(next_page)
-        yield Request(url=next_url, callback=self.parse, dont_filter=True)
+        page = response.css('div.paging.paging-top ul.pagination li')
+        if len(page)>0:
+            next_href = page[-1].css('a::attr(href)').extract_first()
+            next_url = 'https://hsreplay.net/decks/{}'.format(next_href)
+            yield Request(url=next_url, callback=self.parse, dont_filter=True)
 
     def parse_detail(self, response):
         hs_item = HSDecksSpiderItem()
@@ -75,7 +77,6 @@ class HSDecksSpider(scrapy.Spider):
         hs_item['game_count'] = int(response.meta.get('game_count', ' '))
         hs_item['duration'] = float(response.meta.get('duration', ' '))
         hs_item['background_img'] = response.meta.get('background_img', ' ')
-        print(response.meta)
 
         card_list_items = response.css('#overview div.card-list-wrapper ul.card-list div.tooltip-wrapper div.card-tile')
         card_list = []
@@ -88,8 +89,9 @@ class HSDecksSpider(scrapy.Spider):
             card_list.append({'name': card_name, 'cost': card_cost, 'count': card_count, 'img': card_asset})
         hs_item['card_list'] = json.dumps(card_list, indent=4, ensure_ascii=False)
 
-        turns = response.css('table.table-striped tbody tr')[1].css('td::text').extract()
-        hs_item['turns'] = float(turns[1])
+        turns_field = response.css('table.table-striped tbody tr')
+        turns = turns_field[1].css('td::text').extract() if len(turns_field)>1 else []
+        hs_item['turns'] = float(turns[1]) if len(turns)>1 else '0'
         win_rate_nodes = response.css('table.table-striped tbody tr')
         faction_win_rate = []
         for item in win_rate_nodes[4:]:
@@ -100,5 +102,5 @@ class HSDecksSpider(scrapy.Spider):
             win_rate = '.'.join(win_rate)
             faction_win_rate.append({'faction': faction, 'win_rate': win_rate})
         hs_item['faction_win_rate'] = json.dumps(faction_win_rate, indent=4)
-        hs_item['date'] = datetime.datetime.now().strftime(SQL_DATETIME_FORMAT)
+        hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
         yield hs_item

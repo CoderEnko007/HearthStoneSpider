@@ -8,7 +8,7 @@ from scrapy.xlib.pydispatch import dispatcher
 from scrapy import signals
 
 from HearthStoneSpider.items import HSReportSpiderItem
-from HearthStoneSpider.settings import SQL_DATETIME_FORMAT
+from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
 
 class HSReportSpider(scrapy.Spider):
     name = 'HSReport'
@@ -24,7 +24,8 @@ class HSReportSpider(scrapy.Spider):
         dispatcher.connect(self.spider_closed, signals.spider_closed) # scrapy信号量，spider退出时关闭browser
 
     def spider_closed(self):
-        self.browser.close()
+        print('HSReport end')
+        self.browser.quit()
 
     def parse(self, response):
         rank_panel = self.browser.find_elements_by_css_selector('.panel-card.panel-theme-dark.panel-accent-blue')[1]
@@ -32,7 +33,6 @@ class HSReportSpider(scrapy.Spider):
         for btn in rank_panel_btns:
             btn.click()
             time.sleep(3)
-            print(btn.text)
             rank_node = response.css('ul.class-list.class-ranking li')
             for item in rank_node:
                 hs_item = HSReportSpiderItem()
@@ -41,5 +41,5 @@ class HSReportSpider(scrapy.Spider):
                 hs_item['name'] = item.css('.class-name::text').extract_first(' ')
                 hs_item['winrate'] = item.css('.class-winrate::text').extract_first(' ')
                 hs_item['mode'] = btn.text
-                hs_item['date'] = datetime.datetime.now().strftime(SQL_DATETIME_FORMAT)
+                hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
                 yield hs_item

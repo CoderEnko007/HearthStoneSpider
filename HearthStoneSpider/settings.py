@@ -68,8 +68,8 @@ DOWNLOADER_MIDDLEWARES = {
 # See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
    # 'HearthStoneSpider.pipelines.CardImagesPipeline': 1,
-   # 'HearthStoneSpider.pipelines.MysqlTwistedPipeline': 2,
-   'HearthStoneSpider.pipelines.JsonExporterPipeline': 1,
+   'HearthStoneSpider.pipelines.MysqlTwistedPipeline': 2,
+   # 'HearthStoneSpider.pipelines.JsonExporterPipeline': 1,
 }
 IMAGES_URLS_FIELD = 'img' # 配置下载图片的地址
 project_dir = os.path.abspath(os.path.dirname(__file__))
@@ -102,3 +102,6 @@ MYSQL_PWD = '666666'
 # MYSQL_PWD = ''
 
 SQL_DATETIME_FORMAT = "%Y-%m-%d"
+SQL_FULL_DATETIME = "%Y-%m-%d %H:%M"
+
+COMMANDS_MODULE = 'HearthStoneSpider.commands'

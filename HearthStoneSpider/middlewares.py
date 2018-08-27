@@ -109,7 +109,7 @@ class JSPageMiddleware(object):
             return None
         spider.browser.get(request.url)
         import time
-        time.sleep(3)
+        time.sleep(5)
         print('访问:{0}'.format(request.url))
         return HtmlResponse(
             url=spider.browser.current_url,

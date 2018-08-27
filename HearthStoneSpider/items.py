@@ -71,10 +71,12 @@ class HSArchetypeSpiderItem(scrapy.Item):
     core_cards = scrapy.Field() # 核心卡牌
     pop_cards = scrapy.Field() # 热门卡牌
     matchup = scrapy.Field() # 各职业胜率
+    date = scrapy.Field()  # 日期
 
 class HSWinRateSpiderItem(scrapy.Item):
     faction = scrapy.Field() # 职业
-    archetype  = scrapy.Field() # 套牌类型
+    archetype  = scrapy.Field() # 套牌模型
     winrate  = scrapy.Field() # 胜率
     popularity  = scrapy.Field() # 热度
     games  = scrapy.Field() # 对局数
+    date = scrapy.Field()  # 日期
