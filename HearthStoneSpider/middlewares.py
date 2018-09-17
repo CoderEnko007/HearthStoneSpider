@@ -7,6 +7,8 @@
 
 from scrapy import signals
 from scrapy.http import HtmlResponse
+from datetime import datetime
+from HearthStoneSpider.settings import SQL_FULL_DATETIME
 
 
 class HearthstonespiderSpiderMiddleware(object):
@@ -110,7 +112,8 @@ class JSPageMiddleware(object):
         spider.browser.get(request.url)
         import time
         time.sleep(5)
-        print('访问:{0}'.format(request.url))
+        now = datetime.now().strftime(SQL_FULL_DATETIME)
+        print('{0}访问:{1}'.format(now, request.url))
         return HtmlResponse(
             url=spider.browser.current_url,
             body=spider.browser.page_source,

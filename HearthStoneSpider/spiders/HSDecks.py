@@ -8,6 +8,7 @@ from selenium import webdriver
 from scrapy import signals
 from pydispatch import dispatcher
 from scrapy.http import Request
+# import pyperclip
 
 from HearthStoneSpider.items import HSDecksSpiderItem
 from HearthStoneSpider.tools.utils import reMatchFormat
@@ -34,6 +35,7 @@ class HSDecksSpider(scrapy.Spider):
 
     def parse(self, response):
         deck_nodes = response.css('div.deck-list>ul>li')[1:]
+        # deck_nodes = response.css('div.deck-list>ul>li')[-2:]
         for item in deck_nodes:
             deck_id = item.css('a::attr(href)').extract_first('')
             deck_id = reMatchFormat('\/.*\/(.*)\/', deck_id.strip())
@@ -87,7 +89,7 @@ class HSDecksSpider(scrapy.Spider):
             # card_count = re.findall('\d+', card_count)
             card_name = item.css('span.card-name::text').extract_first('')
             card_list.append({'name': card_name, 'cost': card_cost, 'count': card_count, 'img': card_asset})
-        hs_item['card_list'] = json.dumps(card_list, indent=4, ensure_ascii=False)
+        hs_item['card_list'] = card_list
 
         turns_field = response.css('table.table-striped tbody tr')
         turns = turns_field[1].css('td::text').extract() if len(turns_field)>1 else []

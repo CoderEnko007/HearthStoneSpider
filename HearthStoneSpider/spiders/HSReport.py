@@ -4,7 +4,8 @@ import scrapy
 import datetime
 import time
 from selenium import webdriver
-from scrapy.xlib.pydispatch import dispatcher
+from pydispatch import dispatcher
+from scrapy.selector import Selector
 from scrapy import signals
 
 from HearthStoneSpider.items import HSReportSpiderItem
@@ -33,7 +34,8 @@ class HSReportSpider(scrapy.Spider):
         for btn in rank_panel_btns:
             btn.click()
             time.sleep(3)
-            rank_node = response.css('ul.class-list.class-ranking li')
+            t_selector = Selector(text=self.browser.page_source)
+            rank_node = t_selector.css('ul.class-list.class-ranking li')
             for item in rank_node:
                 hs_item = HSReportSpiderItem()
                 index = item.css('.class-index::text').extract_first(' ')

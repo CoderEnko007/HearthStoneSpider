@@ -5,6 +5,8 @@
 # Don"t forget to add your pipeline to the ITEM_PIPELINES setting
 # See: https://doc.scrapy.org/en/latest/topics/item-pipeline.html
 import os
+import json
+import copy
 
 from twisted.enterprise import adbapi
 from scrapy.pipelines.images import ImagesPipeline
@@ -13,6 +15,8 @@ from scrapy.exporters import JsonItemExporter
 
 import MySQLdb
 import MySQLdb.cursors
+
+from HearthStoneSpider.tools.pyhearthstone import HearthStoneDeck
 
 class MysqlTwistedPipeline(object):
     def __init__(self, dbpool):
@@ -95,9 +99,36 @@ class MysqlTwistedPipeline(object):
             """
             cursor.execute(insert_sql, (item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['date']))
 
+        # 统计卡组名称，便于在后台进行卡组名称的翻译
+        select_sql = "SELECT ename FROM winrate_decknametranslate WHERE faction=%r AND ename=%r" % (item['faction'], item['archetype'])
+        res = cursor.execute(select_sql)
+        if res <= 0:
+            insert_sql = """
+                insert into winrate_decknametranslate(faction, ename) VALUES (%s, %s)
+            """
+            cursor.execute(insert_sql, (item['faction'], item['archetype']))
+
+
     def update_decks(self, cursor, item):
+        hsCards = []
+        card_list = item['card_list']
+        try:
+            for card in card_list:
+                select_sql = "SELECT dbfId FROM cards_hscards WHERE ename=%r" % card['name']
+                cursor.execute(select_sql)
+                dbfId = cursor.fetchone()
+                count = int(card.get('count')) if card.get('count').isdigit() else 1
+                hsCards.append((dbfId.get('dbfId'), count))
+                card.update(dbfId)
+            hsDeck = HearthStoneDeck(hero=item['faction'], cards=hsCards)
+            deck_string = hsDeck.genDeckString()
+            item['card_list'] = json.dumps({'deck': deck_string, 'list': item['card_list']}, ensure_ascii=False)
+        except Exception as e:
+            print(e)
+
         select_sql = "SELECT * FROM decks_decks WHERE deck_id=%r" % item['deck_id']
         res = cursor.execute(select_sql)
+        print(item['deck_id'])
         if res>0:
             update_sql = "update decks_decks set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%f, game_count=%d, duration=%f, background_img=%r," \
                          " card_list=%r, turns=%d, faction_win_rate=%r, create_time=%r where deck_id=%r" \

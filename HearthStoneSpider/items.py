@@ -53,6 +53,7 @@ class HSDecksSpiderItem(scrapy.Item):
     game_count = scrapy.Field() # 总对局数
     duration = scrapy.Field() # 对局时长
     background_img = scrapy.Field() # 背景图
+    deck_code = scrapy.Field() #卡组代码
 
     card_list = scrapy.Field() # 卡组套牌
     turns = scrapy.Field() # 回合数
