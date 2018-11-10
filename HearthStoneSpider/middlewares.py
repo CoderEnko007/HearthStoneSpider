@@ -5,10 +5,14 @@
 # See documentation in:
 # https://doc.scrapy.org/en/latest/topics/spider-middleware.html
 
+import re
 from scrapy import signals
 from scrapy.http import HtmlResponse
 from datetime import datetime
 from HearthStoneSpider.settings import SQL_FULL_DATETIME
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 
 class HearthstonespiderSpiderMiddleware(object):
@@ -107,11 +111,30 @@ class HearthstonespiderDownloaderMiddleware(object):
 
 class JSPageMiddleware(object):
     def process_request(self, request, spider):
-        if spider.name=='HearthStone':
+        if spider.name=='HearthStone' or spider.name=='HSArenaCards':
             return None
         spider.browser.get(request.url)
-        import time
-        time.sleep(5)
+        if spider.name == 'HSWinRate' and 'https://hsreplay.net/archetypes/' in request.url:
+            try:
+                element = WebDriverWait(spider.browser, 15).until(
+                    EC.visibility_of_element_located((By.CSS_SELECTOR, '.deck-box .tech-cards'))
+                )
+                print(element)
+            except Exception as e:
+                print(e)
+        elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks') \
+                and re.match('https://hsreplay.net/decks/.*/', request.url)\
+                and 'trending' not in request.url:
+            try:
+                element = WebDriverWait(spider.browser, 15).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'table.table-striped tbody tr td.winrate-cell'))
+                )
+                print(element)
+            except Exception as e:
+                print(e)
+        else:
+            import time
+            time.sleep(5)
         now = datetime.now().strftime(SQL_FULL_DATETIME)
         print('{0}访问:{1}'.format(now, request.url))
         return HtmlResponse(

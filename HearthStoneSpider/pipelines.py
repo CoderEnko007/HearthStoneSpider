@@ -7,6 +7,7 @@
 import os
 import json
 import copy
+from datetime import datetime
 
 from twisted.enterprise import adbapi
 from scrapy.pipelines.images import ImagesPipeline
@@ -17,13 +18,14 @@ import MySQLdb
 import MySQLdb.cursors
 
 from HearthStoneSpider.tools.pyhearthstone import HearthStoneDeck
+from HearthStoneSpider.settings import SQL_FULL_DATETIME
 
 class MysqlTwistedPipeline(object):
     def __init__(self, dbpool):
         self.dbpool = dbpool
         self.RARITY_TYPE = {'1': '基本', '2': '普通', '3': '稀有', '4': '史诗', '5': '传说'}
         self.SERIES_TYPE = {'1': 'BASIC', '2': 'NAXX', '3': 'GVG', '4': 'BRM', '5': 'TGT', '6': 'LOE', '7': 'WOG',
-                            '8': 'ONK', '9': 'MSG', '10': 'JUG', '11': 'KFT', '12': 'KNC', '13': 'TWW', '14': 'TBP'}
+                            '8': 'ONK', '9': 'MSG', '10': 'JUG', '11': 'KFT', '12': 'KNC', '13': 'TWW', '14': 'tableP'}
         self.CLAZZ_TYPE = {'1': '随从', '2': '法术', '3': '装备', '4': '英雄牌'}
         self.MODE_TYPE = {'Standard': '标准模式', 'Wild': '狂野模式'}
 
@@ -46,6 +48,17 @@ class MysqlTwistedPipeline(object):
         dbpool = adbapi.ConnectionPool("MySQLdb", **dbparams)  # 可变化参数传值
         return cls(dbpool)
 
+    def insert(self, cursor, data, table):
+        ls = [(k, data[k]) for k in data if data[k]]
+        sql = 'insert into %s (' % table + ','.join([i[0] for i in ls]) + \
+              ') values (' + ','.join(['%r' % i[1] for i in ls]) + ');'
+        cursor.execute(sql)
+
+    def update(self, cursor, dt_update, dt_condition, table):
+        sql = 'UPDATE %s SET ' % table + ','.join(['%s=%r' % (k, dt_update[k]) for k in dt_update]) \
+              + ' WHERE ' + ' AND '.join(['%s=%r' % (k, dt_condition[k]) for k in dt_condition]) + ';'
+        cursor.execute(sql)
+
     def process_item(self, item, spider):
         # 使用twisted将mysql插入变成异步执行
         global query
@@ -53,97 +66,214 @@ class MysqlTwistedPipeline(object):
             query = self.dbpool.runInteraction(self.update_cards, item)
         elif spider.name=='HSReport':
             query = self.dbpool.runInteraction(self.update_rank, item)
-        elif spider.name=='HSDecks':
-            query = self.dbpool.runInteraction(self.update_decks, item)
+        elif spider.name=='HSDecks' or spider.name=='HSWildDecks':
+            query = self.dbpool.runInteraction(self.update_decks, item, spider)
         elif spider.name=='HSWinRate':
             query = self.dbpool.runInteraction(self.update_winrate, item)
         elif spider.name=='HSArchetype':
             query = self.dbpool.runInteraction(self.update_archetype, item)
+        elif spider.name=='HSArenaCards':
+            query = self.dbpool.runInteraction(self.update_arena_cards, item, spider)
         if query is not None:
-            query.addErrback(self.handle_err)
+            query.addErrback(self.handle_err, item)
 
-    def handle_err(self, failure):
+    def handle_err(self, failure, item):
         # 处理异步插入的异常
         print('错误:', failure)
+        # print('aaaaaaa', item)
 
     def update_archetype(self, cursor, item):
+        core_cards = item['core_cards']
+        pop_cards = item['pop_cards']
+        for cards in [core_cards, pop_cards]:
+            for card in cards:
+                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
+                cursor.execute(select_sql)
+                res_card = cursor.fetchone()
+                card.update({'dbfId': res_card.get('dbfId')})
+                card.update({'rarity': res_card.get('rarity')})
+                card.update({'cname': res_card.get('name')})
+        item['core_cards'] = json.dumps(item['core_cards'], ensure_ascii=False)
+        item['pop_cards'] = json.dumps(item['pop_cards'], ensure_ascii=False)
         select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND to_days(update_time)=to_days(now())" % item['archetype_name']
         res = cursor.execute(select_sql)
         # print('测试：', item['archetype_name'], res)
         if res>0:
             update_sql = "update archetype_archetype set tier=%r, faction=%r, win_rate=%f, game_count=%d, popularity=%f, best_matchup=%r, worst_matchup=%r," \
-                         " core_cards=%r, pop_cards=%r, matchup=%r, update_time=%r where archetype_name=%r AND to_days(update_time)=to_days(now())"\
+                         " pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, matchup=%r, update_time=%r where archetype_name=%r AND to_days(update_time)=to_days(now())"\
                          % (item['tier'], item['faction'], item['win_rate'], item['game_count'], item['popularity'], item['best_matchup'], item['worst_matchup'],\
-                         item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['archetype_name'])
+                         item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['archetype_name'])
             cursor.execute(update_sql)
         else:
             insert_sql = """
-                insert into archetype_archetype(tier, faction, archetype_name, win_rate, game_count, popularity, best_matchup, worst_matchup, core_cards, pop_cards, matchup, update_time)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                insert into archetype_archetype(tier, faction, archetype_name, win_rate, game_count, popularity, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, update_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(insert_sql, (item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'],
-                                        item['best_matchup'], item['worst_matchup'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
+                                        item['best_matchup'], item['worst_matchup'], item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
 
     def update_winrate(self, cursor, item):
+        if item['archetype'] != 'Other':
+            core_cards = item['core_cards']
+            pop_cards = item['pop_cards']
+            for cards in [core_cards, pop_cards]:
+                for card in cards:
+                    select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
+                    cursor.execute(select_sql)
+                    res_card = cursor.fetchone()
+                    card.update({'dbfId': res_card.get('dbfId')})
+                    card.update({'rarity': res_card.get('rarity')})
+                    card.update({'cname': res_card.get('name')})
+            item['core_cards'] = json.dumps(item['core_cards'], ensure_ascii=False)
+            item['pop_cards'] = json.dumps(item['pop_cards'], ensure_ascii=False)
         select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
                      % (item['faction'], item['archetype'])
         res = cursor.execute(select_sql)
         if res > 0:
-            update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, create_time=%r where faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
-                         % (item['winrate'], item['popularity'], item['games'], item['date'], item['faction'], item['archetype'])
+            if item['archetype'] != 'Other':
+                update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, faction_popularity=%f, real_winrate=%f, real_games=%d, best_matchup=%r, worst_matchup=%r," \
+                             "pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, matchup=%r, create_time=%r " \
+                             "where faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+                             % (item['winrate'], item['popularity'], item['games'], item['faction_popularity'], item['real_winrate'], item['real_games'], item['best_matchup'], item['worst_matchup'],
+                                item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['faction'], item['archetype'])
+            else:
+                update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, create_time=%r where faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+                             % (item['winrate'], item['popularity'], item['games'], item['date'], item['faction'], item['archetype'])
+
             cursor.execute(update_sql)
         else:
-            insert_sql = """
-                insert into winrate_hswinrate(faction, archetype, winrate, popularity, games, create_time)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(insert_sql, (item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['date']))
+            if item['archetype'] != 'Other':
+                insert_sql = """
+                    insert into winrate_hswinrate(faction, archetype, winrate, popularity, games, faction_popularity, real_winrate, real_games, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, create_time)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(insert_sql, (item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['faction_popularity'], item['real_winrate'], item['real_games'],
+                                            item['best_matchup'], item['worst_matchup'], item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
+            else:
+                insert_sql = """
+                    insert into winrate_hswinrate(faction, archetype, winrate, popularity, games, create_time)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(insert_sql, (item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['date']))
 
-        # 统计卡组名称，便于在后台进行卡组名称的翻译
-        select_sql = "SELECT ename FROM winrate_decknametranslate WHERE faction=%r AND ename=%r" % (item['faction'], item['archetype'])
-        res = cursor.execute(select_sql)
-        if res <= 0:
-            insert_sql = """
-                insert into winrate_decknametranslate(faction, ename) VALUES (%s, %s)
-            """
-            cursor.execute(insert_sql, (item['faction'], item['archetype']))
-
-
-    def update_decks(self, cursor, item):
+    def update_decks(self, cursor, item, spider):
         hsCards = []
+        deck_code = []
+        clazzCount = {'MINION': 0, 'SPELL': 0, 'WEAPON': 0, 'HERO': 0} # 类别组成
+        rarityCount = {'FREE': 0, 'COMMON': 0, 'RARE': 0, 'EPIC': 0, 'LEGENDARY': 0} # 稀有统计
+        statistic = [0]*8 # 费用统计
         card_list = item['card_list']
         try:
             for card in card_list:
-                select_sql = "SELECT dbfId FROM cards_hscards WHERE ename=%r" % card['name']
+                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
                 cursor.execute(select_sql)
-                dbfId = cursor.fetchone()
-                count = int(card.get('count')) if card.get('count').isdigit() else 1
-                hsCards.append((dbfId.get('dbfId'), count))
-                card.update(dbfId)
+                res_card = cursor.fetchone()
+                # 用于生成卡组代码
+                count = card.get('count')
+                hsCards.append((res_card.get('dbfId'), count))
+                # 套牌组成数据统计
+                clazzCount[res_card.get('type')] += count
+                rarityCount[res_card.get('rarity')] += count
+                if (res_card.get('cost') >= 7):
+                    statistic[7] += count
+                else:
+                    statistic[res_card.get('cost')] += count
+                card.update({'dbfId': res_card.get('dbfId')})
+                card.update({'rarity': res_card.get('rarity')})
+                card.update({'cname': res_card.get('name')})
             hsDeck = HearthStoneDeck(hero=item['faction'], cards=hsCards)
-            deck_string = hsDeck.genDeckString()
-            item['card_list'] = json.dumps({'deck': deck_string, 'list': item['card_list']}, ensure_ascii=False)
+            deck_code = hsDeck.genDeckString()
         except Exception as e:
-            print(e)
+            print('generate deck code error', e)
+        item['card_list'] = json.dumps(item['card_list'], ensure_ascii=False)
+        clazzCount = json.dumps(clazzCount, ensure_ascii=False)
+        rarityCount = json.dumps(rarityCount, ensure_ascii=False)
+        statistic = json.dumps(statistic, ensure_ascii=False)
 
-        select_sql = "SELECT * FROM decks_decks WHERE deck_id=%r" % item['deck_id']
-        res = cursor.execute(select_sql)
-        print(item['deck_id'])
-        if res>0:
-            update_sql = "update decks_decks set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%f, game_count=%d, duration=%f, background_img=%r," \
-                         " card_list=%r, turns=%d, faction_win_rate=%r, create_time=%r where deck_id=%r" \
-                         % (item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['duration'],
-                            item['background_img'], item['card_list'], item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
-            cursor.execute(update_sql)
-
+        if item['trending_flag']:
+            sql_name = 'decks_trending'
         else:
-            insert_sql = """
-                insert into decks_decks(deck_id, faction, deck_name, dust_cost, win_rate, game_count, duration, background_img, card_list, turns, faction_win_rate, create_time)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(insert_sql,(item['deck_id'], item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['duration'],
-                                       item['background_img'], item['card_list'], item['turns'], item['faction_win_rate'], item['date']))
+            sql_name = 'decks_decks'
+            # tableID = spider.ifanr.tablesID['decks_decks']
+            if item['mode'] == 'Wild':
+                tableID = spider.ifanr.tablesID['wild_decks']
+            else:
+                tableID = spider.ifanr.tablesID['standard_decks']
+            # 知晓云数据库处理
+            query = {
+                'where': json.dumps({
+                    'deck_id': {'$eq': item['deck_id']}
+                }),
+            }
+            res = spider.ifanr.get_table_data(tableID=tableID, query=query)
+            data = dict(item._values, **{
+                'deck_code': deck_code,
+                'clazzCount': clazzCount,
+                'rarityCount': rarityCount,
+                'statistic': statistic,
+                'create_time': datetime.now().strftime(SQL_FULL_DATETIME)
+            })
+            data['dust_cost'] = data['dust_cost']+''
+            if res:
+                if (res.get('meta').get('total_count')):
+                    deck = res.get('objects')[0] if res.get('objects') else 'not found deck_id:%s' % deck_id
+                    if item['last_30_days']:
+                        data.pop('last_30_days')
+                        data.pop('win_rate')
+                        data.pop('game_count')
+                    print('last_30_days:', item['last_30_days'])
+                    spider.ifanr.put_table_data(tableID=tableID, id=deck['id'], data=data)
+                else:
+                    spider.ifanr.add_table_data(tableID=tableID, data=data)
+            else:
+                print('yf_log res is none')
 
+        # 阿里云数据库操作
+        if item['trending_flag']:
+            select_sql = "SELECT * FROM %s WHERE deck_id=%r" % (sql_name, item['deck_id'])
+            res = cursor.execute(select_sql)
+            if res>0:
+                # 最近30天的卡组包含最新补丁卡组，所以最近30天卡组不更新last_30_days字段，防止最新补丁的卡组被覆盖为老卡组
+                if item['last_30_days']:
+                    update_sql = "update %s set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%r, game_count=%r, real_game_count=%r, duration=%r, background_img=%r," \
+                                 " card_list=%r, deck_code=%r, clazzCount=%r, rarityCount=%r, statistic=%r, turns=%r, faction_win_rate=%r, create_time=%r where deck_id=%r" \
+                                 % (sql_name, item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'], item['background_img'],
+                                    item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
+                else:
+                    update_sql = "update %s set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%r, game_count=%r, real_game_count=%r, duration=%r, background_img=%r," \
+                                 " last_30_days=%s, card_list=%r, deck_code=%r, clazzCount=%r, rarityCount=%r, statistic=%r, turns=%r, faction_win_rate=%r, create_time=%r where deck_id=%r" \
+                                 % (sql_name, item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'], item['background_img'],
+                                    item['last_30_days'], item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
+                cursor.execute(update_sql)
+                print('update deck', item['deck_id'], item['mode'])
+            else:
+                if sql_name == 'decks_trending':
+                    insert_sql = """
+                        insert into decks_trending(deck_id, faction, deck_name, dust_cost, win_rate, game_count, real_game_count, duration, background_img, card_list, deck_code, clazzCount, rarityCount, statistic, turns, faction_win_rate, create_time)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(insert_sql,(item['deck_id'], item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'],
+                                               item['background_img'], item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date']))
+                else:
+                    insert_sql = """
+                        insert into decks_decks(mode, deck_id, faction, deck_name, dust_cost, win_rate, game_count, real_game_count, duration, background_img,
+                         last_30_days, card_list, deck_code, clazzCount, rarityCount, statistic, turns, faction_win_rate, create_time)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(insert_sql,(item['mode'], item['deck_id'], item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'],
+                                               item['background_img'], item['last_30_days'], item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date']))
+                print('insert deck', item['deck_id'], item['mode'])
+        #
+        # # 统计卡组名称，便于在后台进行卡组名称的翻译
+        select_sql = "SELECT ename FROM winrate_decknametranslate WHERE faction=%r AND ename=%r" % (item['faction'], item['deck_name'])
+        res = cursor.execute(select_sql)
+        if res <= 0:
+            insert_sql = """
+                insert into winrate_decknametranslate(faction, ename, create_time) VALUES (%s, %s, %s)
+            """
+            cursor.execute(insert_sql, (item['faction'], item['deck_name'], item['date']))
+        now = datetime.now().strftime(SQL_FULL_DATETIME)
+        print('{0}update_decks{1}:{2}'.format(now, item['deck_name'], item['deck_id']))
 
     # 爬取HSReplay.net中的rank信息
     def update_rank(self, cursor, item):
@@ -188,6 +318,35 @@ class MysqlTwistedPipeline(object):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(insert_sql, (item['mana'], item['hp'], item['attack'], item['cname'], item['description'], item['ename'], item['faction'], clazz, item['race'], img, rarity, item['rule'], series_id, mode, thumbnail))
+
+    def update_arena_cards(self, cursor, item, spider):
+        standard_series_select_sql = "SELECT id FROM cards_series WHERE mode='Standard'"
+        cursor.execute(standard_series_select_sql)
+        res = cursor.fetchall()
+        standard_series = []
+        for set_id in res:
+            standard_series.append(set_id['id'])
+
+        select_sql = "SELECT * FROM cards_hscards WHERE dbfId=%r" % item.get('dbfId')
+        res = cursor.execute(select_sql)
+        if res<=0:  return
+        res_card = cursor.fetchone()
+        # 如果不是标准模式下的单卡则退出
+        if res_card['set_id'] not in standard_series: return
+        del res_card['id']
+        item.update(res_card)
+        # 清除item中为None的字段
+        s_key = list(item.keys())
+        for k_s in s_key:
+            if item[k_s] is None:
+                del item[k_s]
+        item['update_time'] = datetime.now().strftime(SQL_FULL_DATETIME)
+        select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r" % (item.get('dbfId'), item.get('classification'))
+        res = cursor.execute(select_sql)
+        if res>0:
+            self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification')}, 'cards_arenacards')
+        else:
+            self.insert(cursor, item, 'cards_arenacards')
 
 # 下载图片的pipeline
 class CardImagesPipeline(ImagesPipeline):

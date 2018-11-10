@@ -17,15 +17,10 @@ from HearthStoneSpider.tools.ifan import iFanr
 
 
 class HSDecksSpider(scrapy.Spider):
-    name = 'HSDecks'
+    name = 'HSWildDecks'
     allowed_domains = ['hsreplay.net/decks/']
-    # start_urls = ['https://hsreplay.net/decks/#minGames=400',
-    #               'https://hsreplay.net/decks/trending/']
-    # start_urls = ['https://hsreplay.net/decks/trending/']
-    start_urls = ['https://hsreplay.net/decks/',
-                  'https://hsreplay.net/decks/trending/']
-    # start_urls = ['https://hsreplay.net/decks/#timeRange=LAST_30_DAYS']
-    # start_urls = ['https://hsreplay.net/decks/']
+    # start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD&timeRange=LAST_30_DAYS']
+    start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD']
 
     def __init__(self):
         super(HSDecksSpider, self).__init__()
@@ -45,17 +40,13 @@ class HSDecksSpider(scrapy.Spider):
 
     def parse(self, response):
         trending_flag = False
-        mode = 'Standard' # 这里只爬取标准模式卡组
-        last_30_days = True # 默认是最近30天的卡组
-        if response.url.find('trending')>0:
-            deck_nodes = response.css('div.deck-list>ul>li')
-            trending_flag = True
+        mode = 'Wild' # 默认标准模式卡组
+        # last_30_days = True
+        if response.url.find('LAST_30_DAYS') > 0:
+            last_30_days = True
         else:
-            if response.url.find('LAST_30_DAYS')>0:
-                last_30_days = True
-            else:
-                last_30_days = False
-            deck_nodes = response.css('div.deck-list>ul>li')[1:]
+            last_30_days = False
+        deck_nodes = response.css('div.deck-list>ul>li')[1:]
 
         # deck_nodes = response.css('div.deck-list>ul>li')[-2:]
         for item in deck_nodes:
@@ -73,7 +64,7 @@ class HSDecksSpider(scrapy.Spider):
             duration = reMatchFormat('.*?(\d*\.?\d*).*', duration.strip())
             background_img = item.css('li::attr(style)').extract_first('')
             background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)
-            url = parse.urljoin(response.url, '/decks/{}/'.format(deck_id))
+            url = parse.urljoin(response.url, '/decks/{}/#gameType=RANKED_WILD'.format(deck_id))
             yield Request(url=url, meta={
                 'deck_id': deck_id,
                 'faction': faction,
@@ -88,27 +79,26 @@ class HSDecksSpider(scrapy.Spider):
                 'last_30_days': last_30_days
             }, callback=self.parse_detail, dont_filter=True)
 
-        if not trending_flag:
-            total_page = response.css('div.paging.paging-top ul.pagination li.hidden-lg span::text').extract_first('')
-            if total_page and self.total_page==0:
-                self.total_page = int(re.match('.*\/ ?(\d*)', total_page).group(1))
-                print('yf_log total_page:', self.total_page)
-            if self.total_page > 0:
-                self.current_page += 1
-                if self.current_page <= self.total_page:
-                    if last_30_days:
-                        next_url = 'https://hsreplay.net/decks/#timeRange=LAST_30_DAYS&page={}'.format(self.current_page)
-                    else:
-                        next_url = 'https://hsreplay.net/decks/#page={}'.format(self.current_page)
-                    print('yf_log next_url', next_url)
-                    yield Request(url=next_url, callback=self.parse, dont_filter=True)
-            # page = response.css('div.paging.paging-top ul.pagination li')
-            # if len(page)>0:
-            #     next_href = page[-1].css('a::attr(href)').extract_first()
-            #     if next_href:
-            #         next_url = 'https://hsreplay.net/decks/#timeRange=LAST_30_DAYS{}'.format(next_href.replace('#', '&'))
-            #         print('yf_log', next_url)
-            #         yield Request(url=next_url, callback=self.parse, dont_filter=True)
+        total_page = response.css('div.paging.paging-top ul.pagination li.hidden-lg span::text').extract_first('')
+        if total_page and self.total_page==0:
+            self.total_page = int(re.match('.*\/ ?(\d*)', total_page).group(1))
+            print('yf_log total_page:', self.total_page)
+        if self.total_page > 0:
+            self.current_page += 1
+            if self.current_page <= self.total_page:
+                if last_30_days:
+                    next_url = 'https://hsreplay.net/decks/#gameType=RANKED_WILD&timeRange=LAST_30_DAYS&page={}'.format(self.current_page)
+                else:
+                    next_url = 'https://hsreplay.net/decks/#gameType=RANKED_WILD&page={}'.format(self.current_page)
+                print('yf_log next_url', next_url)
+                yield Request(url=next_url, callback=self.parse, dont_filter=True)
+        # page = response.css('div.paging.paging-top ul.pagination li')
+        # if len(page)>0:
+        #     next_href = page[-1].css('a::attr(href)').extract_first()
+        #     if next_href:
+        #         next_url = 'https://hsreplay.net/decks/#timeRange=LAST_30_DAYS{}'.format(next_href.replace('#', '&'))
+        #         print('yf_log', next_url)
+        #         yield Request(url=next_url, callback=self.parse, dont_filter=True)
 
     def parse_detail(self, response):
         hs_item = HSDecksSpiderItem()
@@ -148,6 +138,10 @@ class HSDecksSpider(scrapy.Spider):
         turns = turns_field[1].css('td::text').extract() if len(turns_field)>1 else []
         hs_item['turns'] = float(turns[1]) if len(turns)>1 else ''
 
+        # win_rate_cell = response.css('table.table-striped tbody tr td.winrate-cell::text').extract_first('')
+        # print('win_rate_cell', win_rate_cell)
+        # win_rate_cell = win_rate_cell.replace('%', '')
+        # hs_item['real_win_rate'] = float(win_rate_cell)
         win_rate_cell = response.css('table.table-striped tbody tr td.winrate-cell::text').extract()
         if win_rate_cell:
             win_rate_cell = win_rate_cell[0].replace('%', '')
@@ -156,13 +150,6 @@ class HSDecksSpider(scrapy.Spider):
             print('win_rate_cell', win_rate_cell)
             hs_item['real_win_rate'] = hs_item['win_rate']
             print('hs_item:', hs_item)
-        # try:
-        #     hs_item['real_win_rate'] = float(win_rate_cell)
-        # except Exception as e:
-        #     hs_item['real_win_rate'] = ''
-        #     print(e)
-        #     print('win_rate_cell:', win_rate_cell)
-        #     print('hs_item:', hs_item)
         print('test win_rate', hs_item['deck_id'], hs_item['win_rate'], hs_item['real_win_rate'])
 
         win_rate_nodes = response.css('table.table-striped tbody tr')
@@ -175,5 +162,5 @@ class HSDecksSpider(scrapy.Spider):
             win_rate = '.'.join(win_rate)
             faction_win_rate.append({'faction': faction, 'win_rate': win_rate})
         hs_item['faction_win_rate'] = json.dumps(faction_win_rate)
-        hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
+        # hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
         yield hs_item

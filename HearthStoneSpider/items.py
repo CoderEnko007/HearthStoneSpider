@@ -46,11 +46,14 @@ class HSReportSpiderItem(scrapy.Item):
 
 class HSDecksSpiderItem(scrapy.Item):
     deck_id = scrapy.Field() # 卡组id
+    mode = scrapy.Field() # 游戏模式
     faction  = scrapy.Field() # 职业
     deck_name = scrapy.Field() # 套牌名称
     dust_cost = scrapy.Field() # 合成花费
     win_rate = scrapy.Field() # 胜率
+    real_win_rate = scrapy.Field()
     game_count = scrapy.Field() # 总对局数
+    real_game_count = scrapy.Field() # 实际总对局数
     duration = scrapy.Field() # 对局时长
     background_img = scrapy.Field() # 背景图
     deck_code = scrapy.Field() #卡组代码
@@ -59,6 +62,9 @@ class HSDecksSpiderItem(scrapy.Item):
     turns = scrapy.Field() # 回合数
     faction_win_rate = scrapy.Field() # 各职业对战胜率
     date = scrapy.Field() # 日期
+
+    trending_flag = scrapy.Field() # 是否为流行套牌
+    last_30_days = scrapy.Field() # 是否为最近30天套牌
 
 class HSArchetypeSpiderItem(scrapy.Item):
     tier = scrapy.Field() # 梯队
@@ -69,6 +75,8 @@ class HSArchetypeSpiderItem(scrapy.Item):
     popularity = scrapy.Field() # 热度
     best_matchup = scrapy.Field() # 最优对局
     worst_matchup = scrapy.Field() # 最劣对局
+    pop_deck = scrapy.Field() # 最受欢迎卡组
+    best_deck = scrapy.Field() # 最优异卡组
     core_cards = scrapy.Field() # 核心卡牌
     pop_cards = scrapy.Field() # 热门卡牌
     matchup = scrapy.Field() # 各职业胜率
@@ -80,4 +88,44 @@ class HSWinRateSpiderItem(scrapy.Item):
     winrate  = scrapy.Field() # 胜率
     popularity  = scrapy.Field() # 热度
     games  = scrapy.Field() # 对局数
+
+    faction_popularity = scrapy.Field()  # 热度
+    real_winrate = scrapy.Field()
+    real_games = scrapy.Field()
+    best_matchup = scrapy.Field()  # 最优对局
+    worst_matchup = scrapy.Field()  # 最劣对局
+    pop_deck = scrapy.Field()  # 最受欢迎卡组
+    best_deck = scrapy.Field()  # 最优异卡组
+    core_cards = scrapy.Field()  # 核心卡牌
+    pop_cards = scrapy.Field()  # 热门卡牌
+    matchup = scrapy.Field()  # 各职业胜率
     date = scrapy.Field()  # 日期
+
+class HSArenaCardsSpiderItem(scrapy.Item):
+    dbfId = scrapy.Field()
+    classification = scrapy.Field()
+    deck_pop = scrapy.Field()
+    copies = scrapy.Field()
+    deck_winrate = scrapy.Field()
+
+    times_played = scrapy.Field()
+    played_pop = scrapy.Field()
+    played_winrate = scrapy.Field()
+
+    name = scrapy.Field()
+    ename = scrapy.Field()
+    hsId = scrapy.Field()
+    cardClass = scrapy.Field()
+    cost = scrapy.Field()
+    attack = scrapy.Field()
+    health = scrapy.Field()
+    rarity = scrapy.Field()
+    type = scrapy.Field()
+    set_id = scrapy.Field()
+    race = scrapy.Field()
+    mechanics = scrapy.Field()
+    flavor = scrapy.Field()
+    text = scrapy.Field()
+    artist = scrapy.Field()
+    collectible = scrapy.Field()
+    update_time = scrapy.Field()

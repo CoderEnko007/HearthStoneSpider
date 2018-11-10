@@ -60,6 +60,27 @@ class HSArchetypeSpider(scrapy.Spider):
         popularity = re.findall('\d+', popularity)
         popularity = '.'.join(popularity)
 
+        deck_box = response.css('a.deck-box')
+        if len(deck_box)>0:
+            pop_deck_code = response.css('a.deck-box::attr(href)')[0].extract()
+            pop_deck_code = re.match('.*\/(.*)\/', pop_deck_code).group(1)
+            pop_deck_win_rate = deck_box[0].css('div.stats-table tr')[0].css('td::text').extract_first('')
+            pop_deck_games = deck_box[0].css('div.stats-table tr')[1].css('td::text').extract_first('')
+            pop_deck = [pop_deck_code, pop_deck_win_rate, pop_deck_games]
+            pop_deck = json.dumps(pop_deck, ensure_ascii=False)
+        else:
+            pop_deck = []
+
+        if len(deck_box)>1:
+            best_deck_code = response.css('a.deck-box::attr(href)')[1].extract()
+            best_deck_code = re.match('.*\/(.*)\/', best_deck_code).group(1)
+            best_deck_win_rate = deck_box[1].css('div.stats-table tr')[0].css('td::text').extract_first('')
+            best_deck_games = deck_box[1].css('div.stats-table tr')[1].css('td::text').extract_first('')
+            best_deck = [best_deck_code, best_deck_win_rate, best_deck_games]
+            best_deck = json.dumps(best_deck, ensure_ascii=False)
+        else:
+            best_deck = []
+
         matchup_box = response.css('a.matchup-box')
         if len(matchup_box)>0:
             best_matchup_player_class = matchup_box[0].css('span.player-class::text').extract_first('')
@@ -88,8 +109,10 @@ class HSArchetypeSpider(scrapy.Spider):
             card_name = item.css('span.card-name::text').extract_first('')
             card_cost = item.css('span.card-cost::text').extract_first('')
             card_assert = item.css('img.card-asset::attr(src)').extract_first('')
-            core_cards.append([card_name, card_cost, card_assert])
-        core_cards = json.dumps(core_cards, ensure_ascii=False)
+            card_hsid = card_assert.split('/')[-1].split('.')[0]
+            # core_cards.append([card_name, card_cost, card_assert])
+            core_cards.append({'name': card_name, 'cost': card_cost, 'card_hsid': card_hsid})
+        # core_cards = json.dumps(core_cards, ensure_ascii=False)
 
         pop_card_list_items = card_list_wrapper[1].css('div.card-tile') if len(card_list_wrapper)>1 else []
         pop_cards = []
@@ -97,8 +120,10 @@ class HSArchetypeSpider(scrapy.Spider):
             card_name = item.css('span.card-name::text').extract_first('')
             card_cost = item.css('span.card-cost::text').extract_first('')
             card_assert = item.css('img.card-asset::attr(src)').extract_first('')
-            pop_cards.append([card_name, card_cost, card_assert])
-        pop_cards = json.dumps(pop_cards, ensure_ascii=False)
+            card_hsid = card_assert.split('/')[-1].split('.')[0]
+            # pop_cards.append([card_name, card_cost, card_assert])
+            pop_cards.append({'name': card_name, 'cost': card_cost, 'card_hsid': card_hsid})
+        # pop_cards = json.dumps(pop_cards, ensure_ascii=False)
 
         matchup_url = response.css('a#tab-matchups::attr(href)').extract_first('')
         url = parse.urljoin(response.url, matchup_url)
@@ -109,6 +134,8 @@ class HSArchetypeSpider(scrapy.Spider):
             'popularity': popularity,
             'best_matchup': best_matchup,
             'worst_matchup': worst_matchup,
+            'pop_deck': pop_deck,
+            'best_deck': best_deck,
             'core_cards': core_cards,
             'pop_cards': pop_cards,
         }, callback=self.matchup_detail, dont_filter=True)
@@ -132,6 +159,8 @@ class HSArchetypeSpider(scrapy.Spider):
         hs_item['game_count'] = int(response.meta.get('game_count'))
         hs_item['best_matchup'] = response.meta.get('best_matchup')
         hs_item['worst_matchup'] = response.meta.get('worst_matchup')
+        hs_item['pop_deck'] = response.meta.get('pop_deck')
+        hs_item['best_deck'] = response.meta.get('best_deck')
         hs_item['core_cards'] = response.meta.get('core_cards')
         hs_item['pop_cards'] = response.meta.get('pop_cards')
 
