@@ -75,8 +75,8 @@ class iFanr(object):
         }
         data = json.dumps(data)
         response = requests.post(url, headers=headers, data=data)
-        # re_dict = json.loads(response.text)
-        # print('add', re_dict)
+        re_dict = json.loads(response.text)
+        print('add', re_dict)
 
     def put_table_data(self, tableID, id, data):
         print('put_table_data', tableID, id)
@@ -87,10 +87,8 @@ class iFanr(object):
         }
         data = json.dumps(data)
         response = requests.put(url, headers=headers, data=data)
-        # re_dict = json.loads(response.text)
-        # print('update', re_dict)
-
-
+        re_dict = json.loads(response.text)
+        print('update', re_dict)
 
 if __name__ == "__main__":
     ifanr = iFanr()
