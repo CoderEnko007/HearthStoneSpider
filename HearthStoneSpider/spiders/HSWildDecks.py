@@ -64,7 +64,7 @@ class HSDecksSpider(scrapy.Spider):
             duration = reMatchFormat('.*?(\d*\.?\d*).*', duration.strip())
             background_img = item.css('li::attr(style)').extract_first('')
             background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)
-            url = parse.urljoin(response.url, '/decks/{}/#gameType=RANKED_WILD'.format(deck_id))
+            url = parse.urljoin(response.url, '/decks/{}/#tab=overview'.format(deck_id))
             yield Request(url=url, meta={
                 'deck_id': deck_id,
                 'faction': faction,
