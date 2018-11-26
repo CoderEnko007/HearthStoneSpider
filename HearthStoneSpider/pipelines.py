@@ -65,8 +65,9 @@ class MysqlTwistedPipeline(object):
         # 使用twisted将mysql插入变成异步执行
         asynItem = copy.deepcopy(item) # 在通过api爬取数据时，由于速度很快，item会被后面的数据覆盖，因此这里改为深拷贝
         global query
+        asyncItem = copy.deepcopy(item)
         if spider.name=='HearthStone':
-            query = self.dbpool.runInteraction(self.update_cards, asynItem)
+            query = self.dbpool.runInteraction(self.update_cards, asyncItem)
         elif spider.name=='HSReport':
             query = self.dbpool.runInteraction(self.update_rank, asynItem)
         elif spider.name=='HSDecks' or spider.name=='HSWildDecks':
@@ -216,7 +217,7 @@ class MysqlTwistedPipeline(object):
                 'statistic': statistic,
                 'create_time': datetime.now().strftime(SQL_FULL_DATETIME)
             })
-            data['dust_cost'] = data['dust_cost']+''
+            data['dust_cost'] = int(data['dust_cost'])
             if res:
                 if (res.get('meta').get('total_count')):
                     deck = res.get('objects')[0] if res.get('objects') else 'not found deck_id:%s' % deck_id
@@ -323,6 +324,7 @@ class MysqlTwistedPipeline(object):
             cursor.execute(insert_sql, (item['mana'], item['hp'], item['attack'], item['cname'], item['description'], item['ename'], item['faction'], clazz, item['race'], img, rarity, item['rule'], series_id, mode, thumbnail))
 
     def update_arena_cards(self, cursor, item, spider):
+        if item.get('deck_pop') <= 0.01: return
         standard_series_select_sql = "SELECT id FROM cards_series WHERE mode='Standard'"
         cursor.execute(standard_series_select_sql)
         res = cursor.fetchall()
@@ -334,10 +336,19 @@ class MysqlTwistedPipeline(object):
         res = cursor.execute(select_sql)
         if res<=0:  return
         res_card = cursor.fetchone()
+        if item.get('classification') != 'ALL' and (res_card['cardClass'] != 'Neutral' and item.get('classification').upper() != res_card['cardClass'].upper()):
+            return
         # 如果不是标准模式下的单卡则退出
         if res_card['set_id'] not in standard_series: return
         del res_card['id']
-
+        del res_card['audio_play_en']
+        del res_card['audio_attack_en']
+        del res_card['audio_death_en']
+        del res_card['audio_trigger_en']
+        del res_card['audio_play_zh']
+        del res_card['audio_attack_zh']
+        del res_card['audio_death_zh']
+        del res_card['audio_trigger_zh']
         item.update(res_card)
         # 清除item中为None的字段
         s_key = list(item.keys())
@@ -345,10 +356,26 @@ class MysqlTwistedPipeline(object):
             if item[k_s] is None:
                 del item[k_s]
         item['update_time'] = datetime.now().strftime(SQL_FULL_DATETIME)
+
+        # select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r" % (item.get('dbfId'), item.get('classification'))
+        # res = cursor.execute(select_sql)
+        # if res>0:
+        #     self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification')}, 'cards_arenacards')
+        # else:
+        #     self.insert(cursor, item, 'cards_arenacards')
+
         tableID = spider.ifanr.tablesID['arena_cards']
+        print('ifanr query', item['classification'], item['dbfId'])
         query = {
             'where': json.dumps({
-                'dbfId': {'$eq': item['dbfId']}
+                "$and": [
+                    {
+                        'dbfId': {'$eq': item['dbfId']}
+                    },
+                    {
+                        'classification': {'$eq': item['classification']}
+                    }
+                ]
             }),
         }
         res = spider.ifanr.get_table_data(tableID=tableID, query=query)
@@ -361,12 +388,6 @@ class MysqlTwistedPipeline(object):
                 spider.ifanr.add_table_data(tableID=tableID, data=data)
         else:
             print('yf_log res is none')
-        # select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r" % (item.get('dbfId'), item.get('classification'))
-        # res = cursor.execute(select_sql)
-        # if res>0:
-        #     self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification')}, 'cards_arenacards')
-        # else:
-        #     self.insert(cursor, item, 'cards_arenacards')
 
 # 下载图片的pipeline
 class CardImagesPipeline(ImagesPipeline):
