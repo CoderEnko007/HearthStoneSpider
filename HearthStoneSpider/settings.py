@@ -102,6 +102,6 @@ MYSQL_PWD = '666666'
 # MYSQL_PWD = ''
 
 SQL_DATETIME_FORMAT = "%Y-%m-%d"
-SQL_FULL_DATETIME = "%Y-%m-%d %H:%M"
+SQL_FULL_DATETIME = "%Y-%m-%d %H:%M:%S"
 
 COMMANDS_MODULE = 'HearthStoneSpider.commands'

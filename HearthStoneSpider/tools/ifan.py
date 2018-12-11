@@ -12,7 +12,8 @@ tablesID = {
     'decks_decks': 53174,
     'standard_decks': 53174,
     'wild_decks': 55625,
-    'arena_cards': 57106
+    'arena_cards': 57106,
+    'trending': 53120
 }
 
 class iFanr(object):

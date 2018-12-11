@@ -3,6 +3,7 @@ import re
 import scrapy
 import datetime
 import time
+import requests
 from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy.selector import Selector
@@ -23,10 +24,15 @@ class HSReportSpider(scrapy.Spider):
         chrome_opt.add_argument('--headless') # 无页面模式
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed) # scrapy信号量，spider退出时关闭browser
+        dispatcher.connect(self.engine_stopped, signals.engine_stopped)
 
     def spider_closed(self):
         print('HSReport end')
         self.browser.quit()
+
+    def engine_stopped(self):
+        print('HSReport engine end')
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/ndhvGONeNt')
 
     def parse(self, response):
         rank_panel = self.browser.find_elements_by_css_selector('.panel-card.panel-theme-dark.panel-accent-blue')[1]

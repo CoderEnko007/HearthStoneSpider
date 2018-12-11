@@ -42,12 +42,12 @@ class HSWinRateSpider(scrapy.Spider):
             detail_url_list.append('')
             data_cells = box.css('div.grid-container')[3].css('.table-cell::text').extract()
             data_list = []
-            list = []
+            list_temp = []
             for item in data_cells:
-                list.append(item)
-                if len(list)%3 == 0:
-                    data_list.append(list)
-                    list = []
+                list_temp.append(item)
+                if len(list_temp)%3 == 0:
+                    data_list.append(list_temp)
+                    list_temp = []
                     continue
             for i, archetype in enumerate(archetype_list):
                 hs_item = HSWinRateSpiderItem()
@@ -60,6 +60,7 @@ class HSWinRateSpider(scrapy.Spider):
                 hs_item['games'] = int(data_list[i][2].replace(',', ''))
                 hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
                 detail_url = parse.urljoin('https://hsreplay.net', detail_url_list[i])
+                print('detail_url:', detail_url)
                 if detail_url_list[i] != '':
                     yield Request(url=detail_url, meta=hs_item, callback=self.parse_detail, dont_filter=True)
                 else:
@@ -185,25 +186,26 @@ class HSWinRateSpider(scrapy.Spider):
     def matchup_detail(self, response):
         hs_item = response.meta
         faction_boxes = response.css('div.class-box-container div.box.class-box')
-        matchup = []
+        matchup = {'Druid':[], 'Hunter':[], 'Mage':[], 'Paladin':[], 'Priest':[], 'Rogue':[], 'Shaman':[], 'Warlock':[], 'Warrior':[]}
         for box in faction_boxes:
             faction = box.css('div.box-title span.player-class::text').extract_first('')
             archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
             data_cells = box.css('div.grid-container')[3].css('a.table-cell::text').extract()
             data_list = []
-            list = []
+            list_temp = []
             for item in data_cells:
-                list.append(item)
-                if len(list) % 3 == 0:
-                    data_list.append(list)
-                    list = []
+                list_temp.append(item)
+                if len(list_temp) % 3 == 0:
+                    data_list.append(list_temp)
+                    list_temp = []
                     continue
             for i, archetype in enumerate(archetype_list):
                 try:
                     data_list[i].insert(0, archetype)
                 except Exception as e:
                     print(e, data_list, archetype_list)
-            matchup.append(data_list)
-        matchup = json.dumps(matchup, ensure_ascii=False)
+            # matchup.append(data_list)detail_url
+            matchup[faction] = data_list
+        matchup = json.dumps(list(matchup.values()), ensure_ascii=False)
         hs_item['matchup'] = matchup
         yield hs_item

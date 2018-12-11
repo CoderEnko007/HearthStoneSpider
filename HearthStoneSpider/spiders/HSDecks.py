@@ -8,6 +8,7 @@ from selenium import webdriver
 from scrapy import signals
 from pydispatch import dispatcher
 from scrapy.http import Request
+import requests
 # import pyperclip
 
 from HearthStoneSpider.items import HSDecksSpiderItem
@@ -22,19 +23,28 @@ class HSDecksSpider(scrapy.Spider):
     # start_urls = ['https://hsreplay.net/decks/#minGames=400',
     #               'https://hsreplay.net/decks/trending/']
     # start_urls = ['https://hsreplay.net/decks/trending/']
-    start_urls = ['https://hsreplay.net/decks/',
-                  'https://hsreplay.net/decks/trending/']
+    # start_urls = ['https://hsreplay.net/decks/',
+    #               'https://hsreplay.net/decks/trending/']
     # start_urls = ['https://hsreplay.net/decks/#timeRange=LAST_30_DAYS']
     # start_urls = ['https://hsreplay.net/decks/']
+    def start_requests(self):
+        for url in self.start_urls:
+            yield Request(url, dont_filter=True)
 
-    def __init__(self):
+    def __init__(self, params=None):
         super(HSDecksSpider, self).__init__()
+        if params == 'trending':
+            self.start_urls = ['https://hsreplay.net/decks/trending/']
+        else:
+            self.start_urls = ['https://hsreplay.net/decks/']
         chrome_opt = webdriver.ChromeOptions()
         chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         chrome_opt.add_argument('--disable-gpu')
         chrome_opt.add_argument('--headless')  # 无页面模式
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
+        dispatcher.connect(self.engine_stopped, signals.engine_stopped)
+        dispatcher.connect(self.item_scraped, signals.item_scraped)
         self.ifanr = iFanr()
         self.current_page = 1
         self.total_page = 0
@@ -42,6 +52,14 @@ class HSDecksSpider(scrapy.Spider):
     def spider_closed(self):
         print('HSDecks end')
         self.browser.quit()
+
+    def engine_stopped(self):
+        print('HSDecks engine end')
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/z1s4JcQZcx')
+
+    def item_scraped(self, response, spider):
+        print(response)
+        print('item_scraped end')
 
     def parse(self, response):
         trending_flag = False
@@ -73,7 +91,7 @@ class HSDecksSpider(scrapy.Spider):
             duration = reMatchFormat('.*?(\d*\.?\d*).*', duration.strip())
             background_img = item.css('li::attr(style)').extract_first('')
             background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)
-            url = parse.urljoin(response.url, '/decks/{}/'.format(deck_id))
+            url = parse.urljoin(response.url, '/decks/{}/#tab=overview'.format(deck_id))
             yield Request(url=url, meta={
                 'deck_id': deck_id,
                 'faction': faction,
@@ -176,4 +194,6 @@ class HSDecksSpider(scrapy.Spider):
             faction_win_rate.append({'faction': faction, 'win_rate': win_rate})
         hs_item['faction_win_rate'] = json.dumps(faction_win_rate)
         hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
+
+        self.crawler.stats.inc_value('decks_scraped')
         yield hs_item

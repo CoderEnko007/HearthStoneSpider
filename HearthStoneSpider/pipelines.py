@@ -115,11 +115,12 @@ class MysqlTwistedPipeline(object):
             """
             cursor.execute(insert_sql, (item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'],
                                         item['best_matchup'], item['worst_matchup'], item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
+        print('update archetype', item['archetype_name'])
 
     def update_winrate(self, cursor, item):
         if item['archetype'] != 'Other':
-            core_cards = item['core_cards']
-            pop_cards = item['pop_cards']
+            core_cards = item.get('core_cards')
+            pop_cards = item.get('pop_cards')
             for cards in [core_cards, pop_cards]:
                 for card in cards:
                     select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
@@ -128,8 +129,8 @@ class MysqlTwistedPipeline(object):
                     card.update({'dbfId': res_card.get('dbfId')})
                     card.update({'rarity': res_card.get('rarity')})
                     card.update({'cname': res_card.get('name')})
-            item['core_cards'] = json.dumps(item['core_cards'], ensure_ascii=False)
-            item['pop_cards'] = json.dumps(item['pop_cards'], ensure_ascii=False)
+            item['core_cards'] = json.dumps(item.get('core_cards'), ensure_ascii=False)
+            item['pop_cards'] = json.dumps(item.get('pop_cards'), ensure_ascii=False)
         select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
                      % (item['faction'], item['archetype'])
         res = cursor.execute(select_sql)
@@ -196,6 +197,13 @@ class MysqlTwistedPipeline(object):
 
         if item['trending_flag']:
             sql_name = 'decks_trending'
+            tableID = spider.ifanr.tablesID['trending']
+            query = {
+                'where': json.dumps({
+                    'faction': {'$eq': item['faction']}
+                })
+            }
+            res = spider.ifanr.get_table_data(tableID=tableID, query=query)
         else:
             sql_name = 'decks_decks'
             # tableID = spider.ifanr.tablesID['decks_decks']
@@ -210,27 +218,28 @@ class MysqlTwistedPipeline(object):
                 }),
             }
             res = spider.ifanr.get_table_data(tableID=tableID, query=query)
-            data = dict(item._values, **{
-                'deck_code': deck_code,
-                'clazzCount': clazzCount,
-                'rarityCount': rarityCount,
-                'statistic': statistic,
-                'create_time': datetime.now().strftime(SQL_FULL_DATETIME)
-            })
+        data = dict(item._values, **{
+            'deck_code': deck_code,
+            'clazzCount': clazzCount,
+            'rarityCount': rarityCount,
+            'statistic': statistic,
+            'create_time': datetime.now().strftime(SQL_FULL_DATETIME)
+        })
+        if not item['trending_flag']:
             data['dust_cost'] = int(data['dust_cost'])
-            if res:
-                if (res.get('meta').get('total_count')):
-                    deck = res.get('objects')[0] if res.get('objects') else 'not found deck_id:%s' % deck_id
-                    if item['last_30_days']:
-                        data.pop('last_30_days')
-                        data.pop('win_rate')
-                        data.pop('game_count')
-                    print('last_30_days:', item['last_30_days'])
-                    spider.ifanr.put_table_data(tableID=tableID, id=deck['id'], data=data)
-                else:
-                    spider.ifanr.add_table_data(tableID=tableID, data=data)
+        if res:
+            if (res.get('meta').get('total_count')):
+                deck = res.get('objects')[0] if res.get('objects') else 'not found deck_id:%s' % deck_id
+                if item['last_30_days'] and not item['trending_flag']:
+                    data.pop('last_30_days')
+                    data.pop('win_rate')
+                    data.pop('game_count')
+                print('last_30_days:', item['last_30_days'])
+                spider.ifanr.put_table_data(tableID=tableID, id=deck['id'], data=data)
             else:
-                print('yf_log res is none')
+                spider.ifanr.add_table_data(tableID=tableID, data=data)
+        else:
+            print('yf_log res is none')
 
         # 阿里云数据库操作
         if item['trending_flag']:
@@ -277,7 +286,7 @@ class MysqlTwistedPipeline(object):
             """
             cursor.execute(insert_sql, (item['faction'], item['deck_name'], item['date']))
         now = datetime.now().strftime(SQL_FULL_DATETIME)
-        print('{0}update_decks{1}:{2}'.format(now, item['deck_name'], item['deck_id']))
+        print('{0} update_decks {1}:{2}'.format(now, item['deck_name'], item['deck_id']))
 
     # 爬取HSReplay.net中的rank信息
     def update_rank(self, cursor, item):
@@ -291,6 +300,7 @@ class MysqlTwistedPipeline(object):
             insert_sql = "insert into rank_hsranking (mode, rank_no, name, winrate, report_time) VALUES (%r, %d, %r, %r, %r)" \
                          % (item['mode'], item['rank_no'], item['name'], item['winrate'], item['date'])
             cursor.execute(insert_sql)
+        print('update_rank', item['mode'], item['name'])
 
     # 从旅法师营地爬取所有卡牌信息
     def update_cards(self, cursor, item):
@@ -349,6 +359,7 @@ class MysqlTwistedPipeline(object):
         del res_card['audio_attack_zh']
         del res_card['audio_death_zh']
         del res_card['audio_trigger_zh']
+        del res_card['eflavor']
         item.update(res_card)
         # 清除item中为None的字段
         s_key = list(item.keys())

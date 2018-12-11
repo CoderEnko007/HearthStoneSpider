@@ -3,6 +3,7 @@ import scrapy
 import datetime
 import re
 import json
+import requests
 from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy import signals
@@ -26,10 +27,15 @@ class HSArchetypeSpider(scrapy.Spider):
         chrome_opt.add_argument('--headless')  # 无页面模式
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
+        dispatcher.connect(self.engine_stopped, signals.engine_stopped)
 
     def spider_closed(self):
         print('HSArchetype end')
         self.browser.quit()
+
+    def engine_stopped(self):
+        print('HSArchetype engine end')
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/UJ15lz8GSk')
 
     def parse(self, response):
         archetype_tier = response.css('div.archetype-tier-list div.tier')
@@ -61,46 +67,52 @@ class HSArchetypeSpider(scrapy.Spider):
         popularity = '.'.join(popularity)
 
         deck_box = response.css('a.deck-box')
-        if len(deck_box)>0:
+        if len(deck_box)>0 and len(response.css('a.deck-box::attr(href)'))>0:
             pop_deck_code = response.css('a.deck-box::attr(href)')[0].extract()
             pop_deck_code = re.match('.*\/(.*)\/', pop_deck_code).group(1)
             pop_deck_win_rate = deck_box[0].css('div.stats-table tr')[0].css('td::text').extract_first('')
             pop_deck_games = deck_box[0].css('div.stats-table tr')[1].css('td::text').extract_first('')
             pop_deck = [pop_deck_code, pop_deck_win_rate, pop_deck_games]
-            pop_deck = json.dumps(pop_deck, ensure_ascii=False)
         else:
             pop_deck = []
+        pop_deck = json.dumps(pop_deck, ensure_ascii=False)
 
-        if len(deck_box)>1:
+        if len(deck_box)>1 and len(response.css('a.deck-box::attr(href)'))>1:
             best_deck_code = response.css('a.deck-box::attr(href)')[1].extract()
             best_deck_code = re.match('.*\/(.*)\/', best_deck_code).group(1)
             best_deck_win_rate = deck_box[1].css('div.stats-table tr')[0].css('td::text').extract_first('')
             best_deck_games = deck_box[1].css('div.stats-table tr')[1].css('td::text').extract_first('')
             best_deck = [best_deck_code, best_deck_win_rate, best_deck_games]
-            best_deck = json.dumps(best_deck, ensure_ascii=False)
         else:
             best_deck = []
+        best_deck = json.dumps(best_deck, ensure_ascii=False)
 
         matchup_box = response.css('a.matchup-box')
         if len(matchup_box)>0:
             best_matchup_player_class = matchup_box[0].css('span.player-class::text').extract_first('')
-            best_matchup_win_rate = matchup_box[0].css('div.stats-table tr')[0].css('td::text').extract_first('')
-            best_matchup_games = matchup_box[0].css('div.stats-table tr')[1].css('td::text').extract_first('')
-            best_matchup = [best_matchup_player_class, best_matchup_win_rate, best_matchup_games]
-            best_matchup = json.dumps(best_matchup, ensure_ascii=False)
+            if (best_matchup_player_class):
+                best_matchup_win_rate = matchup_box[0].css('div.stats-table tr')[0].css('td::text').extract_first('')
+                best_matchup_games = matchup_box[0].css('div.stats-table tr')[1].css('td::text').extract_first('')
+                best_matchup = [best_matchup_player_class, best_matchup_win_rate, best_matchup_games]
+            else:
+                best_matchup = []
         else:
             print('yf_log: best_matchup matchup_box is null')
             best_matchup = []
+        best_matchup = json.dumps(best_matchup, ensure_ascii=False)
 
         if len(matchup_box) > 1:
             worst_matchup_player_class = matchup_box[1].css('span.player-class::text').extract_first('')
-            worst_matchup_win_rate = matchup_box[1].css('div.stats-table tr')[0].css('td::text').extract_first('')
-            worst_matchup_games = matchup_box[1].css('div.stats-table tr')[1].css('td::text').extract_first('')
-            worst_matchup = [worst_matchup_player_class, worst_matchup_win_rate, worst_matchup_games]
-            worst_matchup = json.dumps(worst_matchup, ensure_ascii=False)
+            if worst_matchup_player_class:
+                worst_matchup_win_rate = matchup_box[1].css('div.stats-table tr')[0].css('td::text').extract_first('')
+                worst_matchup_games = matchup_box[1].css('div.stats-table tr')[1].css('td::text').extract_first('')
+                worst_matchup = [worst_matchup_player_class, worst_matchup_win_rate, worst_matchup_games]
+            else:
+                worst_matchup = []
         else:
             print('yf_log: worst_matchup matchup_box is null')
             worst_matchup = []
+        worst_matchup = json.dumps(worst_matchup, ensure_ascii=False)
 
         card_list_wrapper = response.css('div.archetype-signature div.card-list-wrapper')
         core_card_list_items = card_list_wrapper[0].css('div.card-tile') if len(card_list_wrapper)>0  else []
@@ -188,4 +200,5 @@ class HSArchetypeSpider(scrapy.Spider):
         matchup = json.dumps(matchup, ensure_ascii=False)
         hs_item['matchup'] = matchup
         hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
+        self.crawler.stats.inc_value('archetypes_scraped')
         yield hs_item
