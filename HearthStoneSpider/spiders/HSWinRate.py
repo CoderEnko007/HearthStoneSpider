@@ -204,7 +204,7 @@ class HSWinRateSpider(scrapy.Spider):
                     data_list[i].insert(0, archetype)
                 except Exception as e:
                     print(e, data_list, archetype_list)
-            # matchup.append(data_list)detail_url
+            # matchup.append(data_list)
             matchup[faction] = data_list
         matchup = json.dumps(list(matchup.values()), ensure_ascii=False)
         hs_item['matchup'] = matchup

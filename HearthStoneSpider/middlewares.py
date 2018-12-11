@@ -114,9 +114,9 @@ class JSPageMiddleware(object):
         if spider.name=='HearthStone' or spider.name=='HSArenaCards':
             return None
         spider.browser.get(request.url)
-        if spider.name == 'HSWinRate' and 'https://hsreplay.net/archetypes/' in request.url and '#tab=matchups' not in request.url:
+        if spider.name == 'HSWinRate' and 'https://hsreplay.net/archetypes/' in request.url:
             try:
-                element = WebDriverWait(spider.browser, 10).until(
+                element = WebDriverWait(spider.browser, 15).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '.deck-box .tech-cards'))
                 )
                 print(element)
@@ -140,7 +140,7 @@ class JSPageMiddleware(object):
                 print(e)
         else:
             import time
-            time.sleep(5)
+            time.sleep(15)
         now = datetime.now().strftime(SQL_FULL_DATETIME)
         print('{0}访问:{1}'.format(now, request.url))
         return HtmlResponse(
