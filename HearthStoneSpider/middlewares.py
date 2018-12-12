@@ -129,11 +129,11 @@ class JSPageMiddleware(object):
              and re.match('https://hsreplay.net/decks/.*/', request.url):
             try:
                 element = WebDriverWait(spider.browser, 15).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, 'table.table-striped tbody tr td.winrate-cell'))
+                    EC.visibility_of_element_located((By.CSS_SELECTOR, 'table.table-striped tbody tr td.winrate-cell'))
                 )
                 print(element)
                 element = WebDriverWait(spider.browser, 15).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, '#overview div.card-list-wrapper'))
+                    EC.visibility_of_element_located((By.CSS_SELECTOR, '#overview div.card-list-wrapper'))
                 )
                 print(element)
             except Exception as e:
