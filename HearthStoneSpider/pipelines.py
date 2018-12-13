@@ -368,37 +368,42 @@ class MysqlTwistedPipeline(object):
                 del item[k_s]
         item['update_time'] = datetime.now().strftime(SQL_FULL_DATETIME)
 
-        # select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r" % (item.get('dbfId'), item.get('classification'))
-        # res = cursor.execute(select_sql)
-        # if res>0:
-        #     self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification')}, 'cards_arenacards')
-        # else:
-        #     self.insert(cursor, item, 'cards_arenacards')
-
         tableID = spider.ifanr.tablesID['arena_cards']
-        print('ifanr query', item['classification'], item['dbfId'])
-        query = {
-            'where': json.dumps({
-                "$and": [
-                    {
-                        'dbfId': {'$eq': item['dbfId']}
-                    },
-                    {
-                        'classification': {'$eq': item['classification']}
-                    }
-                ]
-            }),
-        }
-        res = spider.ifanr.get_table_data(tableID=tableID, query=query)
+        select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r" % (item.get('dbfId'), item.get('classification'))
+        res = cursor.execute(select_sql)
         data = item._values
-        if res:
-            if (res.get('meta').get('total_count') and res.get('objects')):
-                card = res.get('objects')[0]
-                spider.ifanr.put_table_data(tableID=tableID, id=card['id'], data=data)
-            else:
-                spider.ifanr.add_table_data(tableID=tableID, data=data)
+        if res>0:
+            self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification')}, 'cards_arenacards')
+            res_card = cursor.fetchone()
+            spider.ifanr.put_table_data(tableID=tableID, id=res_card['ifanId'], data=data)
         else:
-            print('yf_log res is none')
+            self.insert(cursor, item, 'cards_arenacards')
+            spider.ifanr.add_table_data(tableID=tableID, data=data)
+
+        # tableID = spider.ifanr.tablesID['arena_cards']
+        # print('ifanr query', item['classification'], item['dbfId'])
+        # query = {
+        #     'where': json.dumps({
+        #         "$and": [
+        #             {
+        #                 'dbfId': {'$eq': item['dbfId']}
+        #             },
+        #             {
+        #                 'classification': {'$eq': item['classification']}
+        #             }
+        #         ]
+        #     }),
+        # }
+        # res = spider.ifanr.get_table_data(tableID=tableID, query=query)
+        # data = item._values
+        # if res:
+        #     if (res.get('meta').get('total_count') and res.get('objects')):
+        #         card = res.get('objects')[0]
+        #         spider.ifanr.put_table_data(tableID=tableID, id=card['id'], data=data)
+        #     else:
+        #         spider.ifanr.add_table_data(tableID=tableID, data=data)
+        # else:
+        #     print('yf_log res is none')
 
 # 下载图片的pipeline
 class CardImagesPipeline(ImagesPipeline):

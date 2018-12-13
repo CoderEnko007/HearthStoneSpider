@@ -103,6 +103,15 @@ class HSWinRateSpiderItem(scrapy.Item):
 
 class HSArenaCardsSpiderItem(scrapy.Item):
     dbfId = scrapy.Field()
+    classification = scrapy.Field()
+    deck_pop = scrapy.Field()
+    copies = scrapy.Field()
+    deck_winrate = scrapy.Field()
+
+    times_played = scrapy.Field()
+    played_pop = scrapy.Field()
+    played_winrate = scrapy.Field()
+
     name = scrapy.Field()
     ename = scrapy.Field()
     hsId = scrapy.Field()
@@ -120,22 +129,3 @@ class HSArenaCardsSpiderItem(scrapy.Item):
     artist = scrapy.Field()
     collectible = scrapy.Field()
     update_time = scrapy.Field()
-
-    class_all = scrapy.Field()
-    class_druid = scrapy.Field()
-    class_hunter = scrapy.Field()
-    class_mage = scrapy.Field()
-    class_paladin = scrapy.Field()
-    class_priest = scrapy.Field()
-    class_rogue = scrapy.Field()
-    class_shaman = scrapy.Field()
-    class_warlock = scrapy.Field()
-    class_warrior = scrapy.Field()
-    # classification = scrapy.Field()
-    # deck_pop = scrapy.Field()
-    # copies = scrapy.Field()
-    # deck_winrate = scrapy.Field()
-    #
-    # times_played = scrapy.Field()
-    # played_pop = scrapy.Field()
-    # played_winrate = scrapy.Field()
