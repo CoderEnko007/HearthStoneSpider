@@ -44,6 +44,14 @@ class HSReportSpiderItem(scrapy.Item):
     mode = scrapy.Field() # 模式
     date = scrapy.Field() # 日期
 
+class HSRankingSpiderItem(scrapy.Item):
+    faction = scrapy.Field() #职业
+    game_type = scrapy.Field() #模式
+    popularity = scrapy.Field() #热度
+    win_rate = scrapy.Field() #胜率
+    total_games = scrapy.Field() #总对局数
+    date = scrapy.Field() # 日期
+
 class HSDecksSpiderItem(scrapy.Item):
     deck_id = scrapy.Field() # 卡组id
     mode = scrapy.Field() # 游戏模式

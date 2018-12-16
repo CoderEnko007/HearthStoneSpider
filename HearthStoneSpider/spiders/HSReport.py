@@ -32,7 +32,7 @@ class HSReportSpider(scrapy.Spider):
 
     def engine_stopped(self):
         print('HSReport engine end')
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/ndhvGONeNt')
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/BZ0LYstkuC')
 
     def parse(self, response):
         rank_panel = self.browser.find_elements_by_css_selector('.panel-card.panel-theme-dark.panel-accent-blue')[1]

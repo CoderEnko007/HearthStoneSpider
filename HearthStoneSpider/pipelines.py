@@ -69,6 +69,8 @@ class MysqlTwistedPipeline(object):
         if spider.name=='HearthStone':
             query = self.dbpool.runInteraction(self.update_cards, asyncItem)
         elif spider.name=='HSReport':
+            query = self.dbpool.runInteraction(self.update_report, asynItem)
+        elif spider.name=='HSRanking':
             query = self.dbpool.runInteraction(self.update_rank, asynItem)
         elif spider.name=='HSDecks' or spider.name=='HSWildDecks':
             query = self.dbpool.runInteraction(self.update_decks, asynItem, spider)
@@ -289,7 +291,7 @@ class MysqlTwistedPipeline(object):
         print('{0} update_decks {1}:{2}'.format(now, item['deck_name'], item['deck_id']))
 
     # 爬取HSReplay.net中的rank信息
-    def update_rank(self, cursor, item):
+    def update_report(self, cursor, item):
         select_sql = "SELECT * FROM rank_hsranking WHERE mode=%r AND name=%r AND to_days(report_time)=to_days(now())" % (item['mode'], item['name'])
         res = cursor.execute(select_sql)
         if res > 0:
@@ -301,6 +303,19 @@ class MysqlTwistedPipeline(object):
                          % (item['mode'], item['rank_no'], item['name'], item['winrate'], item['date'])
             cursor.execute(insert_sql)
         print('update_rank', item['mode'], item['name'])
+
+    def update_rank(self, cursor, item):
+        select_sql = "SELECT * FROM rank_hsranking WHERE mode=%r AND name=%r AND to_days(report_time)=to_days(now())" % (item['game_type'], item['faction'])
+        res = cursor.execute(select_sql)
+        if res > 0:
+            update_sql = "update rank_hsranking set game_type=%r, faction=%r, popularity=%.2f, win_rate=%.2f, total_games=%d, report_time=%r where mode=%r AND name=%r AND to_days(report_time)=to_days(now())" \
+                         % (item['game_type'], item['faction'], item['popularity'], item['win_rate'], item['total_games'], item['date'], item['game_type'], item['faction'])
+            cursor.execute(update_sql)
+        else:
+            insert_sql = "insert into rank_hsranking (game_type, faction, popularity, win_rate, total_games, report_time) VALUES (%r, %r, %.2f, %.2f, %d, %r)" \
+                         % (item['game_type'], item['faction'], item['popularity'], item['win_rate'], item['total_games'], item['date'])
+            cursor.execute(insert_sql)
+        print('update_rank', item['game_type'], item['faction'])
 
     # 从旅法师营地爬取所有卡牌信息
     def update_cards(self, cursor, item):

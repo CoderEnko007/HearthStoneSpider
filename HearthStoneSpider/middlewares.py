@@ -6,6 +6,7 @@
 # https://doc.scrapy.org/en/latest/topics/spider-middleware.html
 
 import re
+import time
 from scrapy import signals
 from scrapy.http import HtmlResponse
 from datetime import datetime
@@ -111,7 +112,7 @@ class HearthstonespiderDownloaderMiddleware(object):
 
 class JSPageMiddleware(object):
     def process_request(self, request, spider):
-        if spider.name=='HearthStone' or spider.name=='HSArenaCards':
+        if spider.name=='HearthStone' or spider.name=='HSArenaCards' or spider.name=='HSRanking':
             return None
         spider.browser.get(request.url)
         if spider.name == 'HSWinRate' and 'https://hsreplay.net/archetypes/' in request.url:
@@ -119,6 +120,7 @@ class JSPageMiddleware(object):
                 element = WebDriverWait(spider.browser, 15).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '.deck-box .tech-cards'))
                 )
+                time.sleep(2)
                 print(element)
             except Exception as e:
                 print(e)
@@ -139,7 +141,6 @@ class JSPageMiddleware(object):
             except Exception as e:
                 print(e)
         else:
-            import time
             time.sleep(15)
         now = datetime.now().strftime(SQL_FULL_DATETIME)
         print('{0}访问:{1}'.format(now, request.url))

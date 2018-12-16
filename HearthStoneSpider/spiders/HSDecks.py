@@ -55,7 +55,7 @@ class HSDecksSpider(scrapy.Spider):
 
     def engine_stopped(self):
         print('HSDecks engine end')
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/z1s4JcQZcx')
+        # requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/z1s4JcQZcx')
 
     def item_scraped(self, response, spider):
         print(response)

@@ -168,7 +168,7 @@ class HSArchetypeSpider(scrapy.Spider):
         except Exception as e:
             print('yf_log', e, response.meta.get('popularity'))
             hs_item['popularity'] = 0
-        hs_item['game_count'] = int(response.meta.get('game_count'))
+        hs_item['game_count'] = int(response.meta.get('game_count')) if response.meta.get('game_count') else None
         hs_item['best_matchup'] = response.meta.get('best_matchup')
         hs_item['worst_matchup'] = response.meta.get('worst_matchup')
         hs_item['pop_deck'] = response.meta.get('pop_deck')
@@ -201,4 +201,5 @@ class HSArchetypeSpider(scrapy.Spider):
         hs_item['matchup'] = matchup
         hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
         self.crawler.stats.inc_value('archetypes_scraped')
+        print(hs_item)
         yield hs_item
