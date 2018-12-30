@@ -56,9 +56,9 @@ class HSArchetypeSpider(scrapy.Spider):
                 }, callback=self.parse_detail, dont_filter=True)
 
     def parse_detail(self, response):
-        win_rate = response.css('a.winrate-box .box-content h1::text').extract_first('')
-        win_rate = re.findall('\d+', win_rate)
-        win_rate = '.'.join(win_rate)
+        # win_rate = response.css('a.winrate-box .box-content h1::text').extract_first('')
+        # win_rate = re.findall('\d+', win_rate)
+        # win_rate = '.'.join(win_rate)
         game_count = response.css('a.winrate-box .box-content h3::text').extract_first('')
         game_count = re.findall('\d+', game_count)
         game_count = ''.join(game_count)
@@ -137,69 +137,94 @@ class HSArchetypeSpider(scrapy.Spider):
             pop_cards.append({'name': card_name, 'cost': card_cost, 'card_hsid': card_hsid})
         # pop_cards = json.dumps(pop_cards, ensure_ascii=False)
 
-        matchup_url = response.css('a#tab-matchups::attr(href)').extract_first('')
-        url = parse.urljoin(response.url, matchup_url)
-        yield Request(url=url, meta={
-            'tier_meta': response.meta,
-            'win_rate': win_rate,
-            'game_count': game_count,
-            'popularity': popularity,
-            'best_matchup': best_matchup,
-            'worst_matchup': worst_matchup,
-            'pop_deck': pop_deck,
-            'best_deck': best_deck,
-            'core_cards': core_cards,
-            'pop_cards': pop_cards,
-        }, callback=self.matchup_detail, dont_filter=True)
-        
-    def matchup_detail(self, response):
         hs_item = HSArchetypeSpiderItem()
-        hs_item['tier'] = response.meta.get('tier_meta').get('tier')
-        hs_item['faction'] = response.meta.get('tier_meta').get('faction')
-        hs_item['archetype_name'] = response.meta.get('tier_meta').get('archetype_name')
-        # hs_item['win_rate'] = response.meta.tier_meta.get('win_rate')
+        hs_item['tier'] = response.meta.get('tier')
+        hs_item['faction'] = response.meta.get('faction')
+        hs_item['archetype_name'] = response.meta.get('archetype_name')
         try:
-            hs_item['win_rate'] = float(response.meta.get('win_rate'))
+            hs_item['win_rate'] = float(response.meta.get('win_rate').replace("%", ""))
         except Exception as e:
             print('yf_log', e, response.meta.get('win_rate'))
             hs_item['win_rate'] = 0
         try:
-            hs_item['popularity'] = float(response.meta.get('popularity'))
+            hs_item['popularity'] = float(popularity)
         except Exception as e:
-            print('yf_log', e, response.meta.get('popularity'))
+            print('yf_log', e, popularity)
             hs_item['popularity'] = 0
-        hs_item['game_count'] = int(response.meta.get('game_count')) if response.meta.get('game_count') else None
-        hs_item['best_matchup'] = response.meta.get('best_matchup')
-        hs_item['worst_matchup'] = response.meta.get('worst_matchup')
-        hs_item['pop_deck'] = response.meta.get('pop_deck')
-        hs_item['best_deck'] = response.meta.get('best_deck')
-        hs_item['core_cards'] = response.meta.get('core_cards')
-        hs_item['pop_cards'] = response.meta.get('pop_cards')
+        hs_item['game_count'] = int(game_count)
+        hs_item['best_matchup'] = best_matchup
+        hs_item['worst_matchup'] = worst_matchup
+        hs_item['pop_deck'] = pop_deck
+        hs_item['best_deck'] = best_deck
+        hs_item['core_cards'] = core_cards
+        hs_item['pop_cards'] = pop_cards
+        hs_item['matchup'] = "[]"
 
-
-        faction_boxes = response.css('div.class-box-container div.box.class-box')
-        matchup = []
-        for box in faction_boxes:
-            faction = box.css('div.box-title span.player-class::text').extract_first('')
-            archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
-            data_cells = box.css('div.grid-container')[3].css('a.table-cell::text').extract()
-            data_list = []
-            list = []
-            for item in data_cells:
-                list.append(item)
-                if len(list) % 3 == 0:
-                    data_list.append(list)
-                    list = []
-                    continue
-            for i, archetype in enumerate(archetype_list):
-                try:
-                    data_list[i].insert(0, archetype)
-                except Exception as e:
-                    print(e, data_list, archetype_list)
-            matchup.append(data_list)
-        matchup = json.dumps(matchup, ensure_ascii=False)
-        hs_item['matchup'] = matchup
-        hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
         self.crawler.stats.inc_value('archetypes_scraped')
-        print(hs_item)
         yield hs_item
+
+    #     matchup_url = response.css('a#tab-matchups::attr(href)').extract_first('')
+    #     url = parse.urljoin(response.url, matchup_url)
+    #     yield Request(url=url, meta={
+    #         'tier_meta': response.meta,
+    #         'win_rate': win_rate,
+    #         'game_count': game_count,
+    #         'popularity': popularity,
+    #         'best_matchup': best_matchup,
+    #         'worst_matchup': worst_matchup,
+    #         'pop_deck': pop_deck,
+    #         'best_deck': best_deck,
+    #         'core_cards': core_cards,
+    #         'pop_cards': pop_cards,
+    #     }, callback=self.matchup_detail, dont_filter=True)
+    #
+    # def matchup_detail(self, response):
+    #     hs_item = HSArchetypeSpiderItem()
+    #     hs_item['tier'] = response.meta.get('tier_meta').get('tier')
+    #     hs_item['faction'] = response.meta.get('tier_meta').get('faction')
+    #     hs_item['archetype_name'] = response.meta.get('tier_meta').get('archetype_name')
+    #     hs_item['win_rate'] = float(response.meta.get('tier_meta').get('win_rate').replace("%", ""))
+    #     # try:
+    #     #     hs_item['win_rate'] = float(response.meta.get('win_rate'))
+    #     # except Exception as e:
+    #     #     print('yf_log', e, response.meta.get('win_rate'))
+    #     #     hs_item['win_rate'] = 0
+    #     try:
+    #         hs_item['popularity'] = float(response.meta.get('popularity'))
+    #     except Exception as e:
+    #         print('yf_log', e, response.meta.get('popularity'))
+    #         hs_item['popularity'] = 0
+    #     hs_item['game_count'] = int(response.meta.get('game_count')) if response.meta.get('game_count') else None
+    #     hs_item['best_matchup'] = response.meta.get('best_matchup')
+    #     hs_item['worst_matchup'] = response.meta.get('worst_matchup')
+    #     hs_item['pop_deck'] = response.meta.get('pop_deck')
+    #     hs_item['best_deck'] = response.meta.get('best_deck')
+    #     hs_item['core_cards'] = response.meta.get('core_cards')
+    #     hs_item['pop_cards'] = response.meta.get('pop_cards')
+    #
+    #
+    #     faction_boxes = response.css('div.class-box-container div.box.class-box')
+    #     matchup = []
+    #     for box in faction_boxes:
+    #         faction = box.css('div.box-title span.player-class::text').extract_first('')
+    #         archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
+    #         data_cells = box.css('div.grid-container')[3].css('a.table-cell::text').extract()
+    #         data_list = []
+    #         list = []
+    #         for item in data_cells:
+    #             list.append(item)
+    #             if len(list) % 3 == 0:
+    #                 data_list.append(list)
+    #                 list = []
+    #                 continue
+    #         for i, archetype in enumerate(archetype_list):
+    #             try:
+    #                 data_list[i].insert(0, archetype)
+    #             except Exception as e:
+    #                 print(e, data_list, archetype_list)
+    #         matchup.append(data_list)
+    #     matchup = json.dumps(matchup, ensure_ascii=False)
+    #     hs_item['matchup'] = matchup
+    #     hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
+    #     self.crawler.stats.inc_value('archetypes_scraped')
+    #     yield hs_item

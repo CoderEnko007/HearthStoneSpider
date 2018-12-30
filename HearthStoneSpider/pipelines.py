@@ -101,6 +101,7 @@ class MysqlTwistedPipeline(object):
                 card.update({'cname': res_card.get('name')})
         item['core_cards'] = json.dumps(item['core_cards'], ensure_ascii=False)
         item['pop_cards'] = json.dumps(item['pop_cards'], ensure_ascii=False)
+        item['date'] = datetime.now().strftime(SQL_FULL_DATETIME)
         select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND to_days(update_time)=to_days(now())" % item['archetype_name']
         res = cursor.execute(select_sql)
         # print('测试：', item['archetype_name'], res)
@@ -305,7 +306,7 @@ class MysqlTwistedPipeline(object):
         print('update_rank', item['mode'], item['name'])
 
     def update_rank(self, cursor, item):
-        select_sql = "SELECT * FROM rank_hsranking WHERE mode=%r AND name=%r AND to_days(report_time)=to_days(now())" % (item['game_type'], item['faction'])
+        select_sql = "SELECT * FROM rank_hsranking WHERE game_type=%r AND faction=%r AND to_days(report_time)=to_days(now())" % (item['game_type'], item['faction'])
         res = cursor.execute(select_sql)
         if res > 0:
             update_sql = "update rank_hsranking set game_type=%r, faction=%r, popularity=%.2f, win_rate=%.2f, total_games=%d, report_time=%r where mode=%r AND name=%r AND to_days(report_time)=to_days(now())" \
@@ -386,11 +387,12 @@ class MysqlTwistedPipeline(object):
         tableID = spider.ifanr.tablesID['arena_cards']
         select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r" % (item.get('dbfId'), item.get('classification'))
         res = cursor.execute(select_sql)
+        res_card = cursor.fetchone()
+        ifanId = res_card['ifanId']
         data = item._values
         if res>0:
             self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification')}, 'cards_arenacards')
-            res_card = cursor.fetchone()
-            spider.ifanr.put_table_data(tableID=tableID, id=res_card['ifanId'], data=data)
+            spider.ifanr.put_table_data(tableID=tableID, id=ifanId, data=data)
         else:
             self.insert(cursor, item, 'cards_arenacards')
             spider.ifanr.add_table_data(tableID=tableID, data=data)

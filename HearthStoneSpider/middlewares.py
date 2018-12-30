@@ -117,7 +117,7 @@ class JSPageMiddleware(object):
         spider.browser.get(request.url)
         if spider.name == 'HSWinRate' and 'https://hsreplay.net/archetypes/' in request.url:
             try:
-                element = WebDriverWait(spider.browser, 15).until(
+                element = WebDriverWait(spider.browser, 5).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '.deck-box .tech-cards'))
                 )
                 time.sleep(2)
@@ -130,18 +130,18 @@ class JSPageMiddleware(object):
         elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks') \
              and re.match('https://hsreplay.net/decks/.*/', request.url):
             try:
-                element = WebDriverWait(spider.browser, 15).until(
+                element = WebDriverWait(spider.browser, 5).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, 'table.table-striped tbody tr td.winrate-cell'))
                 )
                 print(element)
-                element = WebDriverWait(spider.browser, 15).until(
+                element = WebDriverWait(spider.browser, 5).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '#overview div.card-list-wrapper'))
                 )
                 print(element)
             except Exception as e:
                 print(e)
         else:
-            time.sleep(15)
+            time.sleep(5)
         now = datetime.now().strftime(SQL_FULL_DATETIME)
         print('{0}访问:{1}'.format(now, request.url))
         return HtmlResponse(

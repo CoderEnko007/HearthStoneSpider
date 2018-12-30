@@ -19,14 +19,14 @@ from HearthStoneSpider.tools.ifan import iFanr
 
 class HSDecksSpider(scrapy.Spider):
     name = 'HSDecks'
-    allowed_domains = ['hsreplay.net/decks/']
+    # allowed_domains = ['hsreplay.net/decks/']
     # start_urls = ['https://hsreplay.net/decks/#minGames=400',
     #               'https://hsreplay.net/decks/trending/']
     # start_urls = ['https://hsreplay.net/decks/trending/']
     # start_urls = ['https://hsreplay.net/decks/',
     #               'https://hsreplay.net/decks/trending/']
     # start_urls = ['https://hsreplay.net/decks/#timeRange=LAST_30_DAYS']
-    # start_urls = ['https://hsreplay.net/decks/']
+    start_urls = ['https://hsreplay.net/decks/']
     def start_requests(self):
         for url in self.start_urls:
             yield Request(url, dont_filter=True)
@@ -44,7 +44,7 @@ class HSDecksSpider(scrapy.Spider):
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
-        dispatcher.connect(self.item_scraped, signals.item_scraped)
+        # dispatcher.connect(self.item_scraped, signals.item_scraped)
         self.ifanr = iFanr()
         self.current_page = 1
         self.total_page = 0
@@ -58,7 +58,6 @@ class HSDecksSpider(scrapy.Spider):
         # requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/z1s4JcQZcx')
 
     def item_scraped(self, response, spider):
-        print(response)
         print('item_scraped end')
 
     def parse(self, response):
