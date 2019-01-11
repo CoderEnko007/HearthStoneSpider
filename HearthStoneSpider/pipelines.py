@@ -171,6 +171,9 @@ class MysqlTwistedPipeline(object):
         rarityCount = {'FREE': 0, 'COMMON': 0, 'RARE': 0, 'EPIC': 0, 'LEGENDARY': 0} # 稀有统计
         statistic = [0]*8 # 费用统计
         card_list = item['card_list']
+        if len(card_list) == 0:
+            print('card_list is none', item)
+            return
         try:
             for card in card_list:
                 select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
