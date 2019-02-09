@@ -135,7 +135,7 @@ class JSPageMiddleware(object):
                 )
                 print(element)
                 element = WebDriverWait(spider.browser, 5).until(
-                    EC.visibility_of_element_located((By.CSS_SELECTOR, '#overview div.card-list-wrapper'))
+                    EC.visibility_of_element_located((By.CSS_SELECTOR, '#overview div.card-list-wrapper ul.card-list'))
                 )
                 print(element)
             except Exception as e:

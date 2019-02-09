@@ -81,6 +81,9 @@ class iFanr(object):
 
     def put_table_data(self, tableID, id, data):
         print('put_table_data', tableID, id)
+        if id is None:
+            print('ifanr id is None')
+            return
         url = r'https://cloud.minapp.com/oserve/v1/table/%s/record/%s/' % (tableID, id)
         headers = {
             'Authorization': 'Bearer %s' % self.token,

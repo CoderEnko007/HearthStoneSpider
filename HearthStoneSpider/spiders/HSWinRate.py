@@ -119,7 +119,7 @@ class HSWinRateSpider(scrapy.Spider):
         if len(deck_box) > 1:
             best_deck_code = response.css('a.deck-box::attr(href)').extract()
             if best_deck_code:
-                best_deck_code = best_deck_code[0]
+                best_deck_code = best_deck_code[1]
                 best_deck_code = re.match('.*\/(.*)\/', best_deck_code).group(1)
                 best_deck_win_rate = deck_box[1].css('div.stats-table tr')[0].css('td::text').extract_first('')
                 best_deck_games = deck_box[1].css('div.stats-table tr')[1].css('td::text').extract_first('')
