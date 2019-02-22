@@ -37,8 +37,10 @@ class HSWinRateSpider(scrapy.Spider):
 
     def engine_stopped(self):
         print('HSReport engine end')
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/8gI1Ku43Py')
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/ey491UwqmO')
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/8gI1Ku43Py') # HSWinRateWebHook
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/elzp6Ttp2L') # HSWinrateRangeDataWebHook
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/ey491UwqmO') # HSWinRateArchetypeWebHook
+
 
     def parse(self, response):
         faction_boxes = response.css('div.class-box-container div.box.class-box')
@@ -60,6 +62,7 @@ class HSWinRateSpider(scrapy.Spider):
                     continue
             for i, archetype in enumerate(archetype_list):
                 hs_item = HSWinRateSpiderItem()
+                hs_item['rank_range'] = 'All'
                 hs_item['faction'] = faction
                 hs_item['archetype'] = archetype
                 win_rate = re.findall('\d+', data_list[i][0])

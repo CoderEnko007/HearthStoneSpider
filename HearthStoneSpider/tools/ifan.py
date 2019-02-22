@@ -78,6 +78,7 @@ class iFanr(object):
         response = requests.post(url, headers=headers, data=data)
         re_dict = json.loads(response.text)
         print('add', re_dict)
+        return re_dict
 
     def put_table_data(self, tableID, id, data):
         print('put_table_data', tableID, id)

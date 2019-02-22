@@ -75,6 +75,7 @@ class HSDecksSpiderItem(scrapy.Item):
     last_30_days = scrapy.Field() # 是否为最近30天套牌
 
 class HSArchetypeSpiderItem(scrapy.Item):
+    rank_range = scrapy.Field() #分段
     tier = scrapy.Field() # 梯队
     faction = scrapy.Field() # 职业
     archetype_name = scrapy.Field() # 卡组模板名称
@@ -91,6 +92,7 @@ class HSArchetypeSpiderItem(scrapy.Item):
     date = scrapy.Field()  # 日期
 
 class HSWinRateSpiderItem(scrapy.Item):
+    rank_range = scrapy.Field()  # 分段
     faction = scrapy.Field() # 职业
     archetype  = scrapy.Field() # 套牌模型
     winrate  = scrapy.Field() # 胜率
@@ -137,3 +139,5 @@ class HSArenaCardsSpiderItem(scrapy.Item):
     artist = scrapy.Field()
     collectible = scrapy.Field()
     update_time = scrapy.Field()
+    extra_data = scrapy.Field()
+    extra_data_flag = scrapy.Field()

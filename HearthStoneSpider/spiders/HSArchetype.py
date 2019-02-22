@@ -35,7 +35,8 @@ class HSArchetypeSpider(scrapy.Spider):
 
     def engine_stopped(self):
         print('HSArchetype engine end')
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/UJ15lz8GSk')
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/UJ15lz8GSk') # HSArchetypeWebHook
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/RGFLY7CmCp') # HSArchetypeRangeDataWebHook
 
     def parse(self, response):
         archetype_tier = response.css('div.archetype-tier-list div.tier')
@@ -159,7 +160,7 @@ class HSArchetypeSpider(scrapy.Spider):
         hs_item['core_cards'] = core_cards
         hs_item['pop_cards'] = pop_cards
         hs_item['matchup'] = "[]"
-
+        hs_item['rank_range'] = 'All'
         self.crawler.stats.inc_value('archetypes_scraped')
         yield hs_item
 

@@ -53,13 +53,13 @@ class MysqlTwistedPipeline(object):
         sql = 'insert into %s (' % table + ','.join([i[0] for i in ls]) + \
               ') values (' + ','.join(['%r' % i[1] for i in ls]) + ');'
         cursor.execute(sql)
-        print('insert', data['name'], data['classification'])
+        print('insert', data.get('name'), data.get('classification'))
 
     def update(self, cursor, dt_update, dt_condition, table):
         sql = 'UPDATE %s SET ' % table + ','.join(['%s=%r' % (k, dt_update[k]) for k in dt_update]) \
               + ' WHERE ' + ' AND '.join(['%s=%r' % (k, dt_condition[k]) for k in dt_condition]) + ';'
         cursor.execute(sql)
-        print('update', dt_update['name'], dt_update['classification'])
+        print('update', dt_update.get('name'), dt_update.get('classification'))
 
     def process_item(self, item, spider):
         # 使用twisted将mysql插入变成异步执行
@@ -102,21 +102,21 @@ class MysqlTwistedPipeline(object):
         item['core_cards'] = json.dumps(item['core_cards'], ensure_ascii=False)
         item['pop_cards'] = json.dumps(item['pop_cards'], ensure_ascii=False)
         item['date'] = datetime.now().strftime(SQL_FULL_DATETIME)
-        select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND to_days(update_time)=to_days(now())" % item['archetype_name']
+        select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND rank_range=%r AND to_days(update_time)=to_days(now())" % (item['archetype_name'], item['rank_range'])
         res = cursor.execute(select_sql)
         # print('测试：', item['archetype_name'], res)
         if res>0:
             update_sql = "update archetype_archetype set tier=%r, faction=%r, win_rate=%f, game_count=%d, popularity=%f, best_matchup=%r, worst_matchup=%r," \
-                         " pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, matchup=%r, update_time=%r where archetype_name=%r AND to_days(update_time)=to_days(now())"\
+                         " pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, matchup=%r, update_time=%r where archetype_name=%r AND rank_range=%r AND to_days(update_time)=to_days(now())"\
                          % (item['tier'], item['faction'], item['win_rate'], item['game_count'], item['popularity'], item['best_matchup'], item['worst_matchup'],\
-                         item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['archetype_name'])
+                         item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['archetype_name'], item['rank_range'])
             cursor.execute(update_sql)
         else:
             insert_sql = """
-                insert into archetype_archetype(tier, faction, archetype_name, win_rate, game_count, popularity, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, update_time)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                insert into archetype_archetype(rank_range, tier, faction, archetype_name, win_rate, game_count, popularity, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, update_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_sql, (item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'],
+            cursor.execute(insert_sql, (item['rank_range'], item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'],
                                         item['best_matchup'], item['worst_matchup'], item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
         print('update archetype', item['archetype_name'])
 
@@ -134,35 +134,35 @@ class MysqlTwistedPipeline(object):
                     card.update({'cname': res_card.get('name')})
             item['core_cards'] = json.dumps(item.get('core_cards'), ensure_ascii=False)
             item['pop_cards'] = json.dumps(item.get('pop_cards'), ensure_ascii=False)
-        select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
-                     % (item['faction'], item['archetype'])
+        select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
+                     % (item['faction'], item['rank_range'], item['archetype'])
         res = cursor.execute(select_sql)
         if res > 0:
             if item['archetype'] != 'Other':
                 update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, faction_popularity=%f, real_winrate=%f, real_games=%d, best_matchup=%r, worst_matchup=%r," \
                              "pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, matchup=%r, create_time=%r " \
-                             "where faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+                             "where faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
                              % (item['winrate'], item['popularity'], item['games'], item['faction_popularity'], item['real_winrate'], item['real_games'], item['best_matchup'], item['worst_matchup'],
-                                item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['faction'], item['archetype'])
+                                item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['faction'], item['rank_range'], item['archetype'])
             else:
-                update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, create_time=%r where faction=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
-                             % (item['winrate'], item['popularity'], item['games'], item['date'], item['faction'], item['archetype'])
+                update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, create_time=%r where faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+                             % (item['winrate'], item['popularity'], item['games'], item['date'], item['faction'], item['rank_range'], item['archetype'])
 
             cursor.execute(update_sql)
         else:
             if item['archetype'] != 'Other':
                 insert_sql = """
-                    insert into winrate_hswinrate(faction, archetype, winrate, popularity, games, faction_popularity, real_winrate, real_games, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, create_time)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    insert into winrate_hswinrate(rank_range, faction, archetype, winrate, popularity, games, faction_popularity, real_winrate, real_games, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, create_time)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(insert_sql, (item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['faction_popularity'], item['real_winrate'], item['real_games'],
+                cursor.execute(insert_sql, (item['rank_range'], item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['faction_popularity'], item['real_winrate'], item['real_games'],
                                             item['best_matchup'], item['worst_matchup'], item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
             else:
                 insert_sql = """
-                    insert into winrate_hswinrate(faction, archetype, winrate, popularity, games, create_time)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    insert into winrate_hswinrate(rank_range, faction, archetype, winrate, popularity, games, create_time)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(insert_sql, (item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['date']))
+                cursor.execute(insert_sql, (item['rank_range'], item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['date']))
 
     def update_decks(self, cursor, item, spider):
         hsCards = []
@@ -388,18 +388,33 @@ class MysqlTwistedPipeline(object):
         item['update_time'] = datetime.now().strftime(SQL_FULL_DATETIME)
 
         tableID = spider.ifanr.tablesID['arena_cards']
-        select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r" % (item.get('dbfId'), item.get('classification'))
+        select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r and extra_data=0" % (item.get('dbfId'), item.get('classification'))
         res = cursor.execute(select_sql)
-        res_card = cursor.fetchone()
-        ifanId = res_card['ifanId']
         data = item._values
-        if res>0:
-            self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification')}, 'cards_arenacards')
-            spider.ifanr.put_table_data(tableID=tableID, id=ifanId, data=data)
-        else:
-            self.insert(cursor, item, 'cards_arenacards')
-            spider.ifanr.add_table_data(tableID=tableID, data=data)
+        item['extra_data'] = 0 #统计用数据的标识，为false的需要同步到知晓云，否则只更新到阿里云
+        if item['extra_data_flag'] == False:
+            del item['extra_data_flag']
+            if res>0:
+                res_card = cursor.fetchone()
+                ifanId = res_card.get('ifanId') if res_card is not None else None  # 没有id没处理?
+                self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification'), 'extra_data': 0}, 'cards_arenacards')
+                spider.ifanr.put_table_data(tableID=tableID, id=ifanId, data=data)
+            else:
+                res = spider.ifanr.add_table_data(tableID=tableID, data=data)
+                item.update({'ifanId': res.get('_id')})
+                self.insert(cursor, item, 'cards_arenacards')
 
+        if item.get('classification') == 'ALL':
+            del item['extra_data_flag']
+            select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r AND extra_data=1 AND to_days(update_time)=to_days(now())" % (item.get('dbfId'))
+            res = cursor.execute(select_sql)
+            res_card = cursor.fetchone()
+            item['extra_data'] = 1  # 统计用数据的标识，为false的需要同步到知晓云，否则只更新到阿里云
+            if res>0:
+                # self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification'), 'extra_data': 1}, 'cards_arenacards')
+                self.update(cursor, item, {'id': res_card.get('id')}, 'cards_arenacards')
+            else:
+                self.insert(cursor, item, 'cards_arenacards')
         # tableID = spider.ifanr.tablesID['arena_cards']
         # print('ifanr query', item['classification'], item['dbfId'])
         # query = {

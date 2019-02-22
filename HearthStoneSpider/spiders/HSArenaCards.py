@@ -16,11 +16,12 @@ class HSArenaCardsSpider(scrapy.Spider):
     allowed_domains = ['hsreplay.net']
     start_urls = ['https://hsreplay.net/analytics/query/card_played_popularity_report/?GameType=ARENA&TimeRange=LAST_14_DAYS']
 
-    def __init__(self):
+    def __init__(self, params=None):
         super(HSArenaCardsSpider, self).__init__()
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         self.ifanr = iFanr()
         self.cards_series = {}
+        self.extra_data_flag = True if params=='extra_data' else False
 
     def spider_closed(self):
         now = datetime.now().strftime(SQL_FULL_DATETIME)
@@ -54,4 +55,5 @@ class HSArenaCardsSpider(scrapy.Spider):
                     item['deck_pop'] = round(card_played.get('popularity'), 2) if card_played.get('popularity') else None
                     item['copies'] = card_played.get('count')
                     item['deck_winrate'] = round(card_played.get('winrate'), 2) if card_played.get('winrate') else None
+                    item['extra_data_flag'] = self.extra_data_flag
                     yield item
