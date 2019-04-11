@@ -54,7 +54,6 @@ class HSDecksSpider(scrapy.Spider):
         # dispatcher.connect(self.item_scraped, signals.item_scraped)
         self.ifanr = iFanr()
         self.interrupt_page = 70
-        print('测试中断 params=',params)
         self.current_page = self.interrupt_page+1 if params == 'interrupt' else 1 # 70页需要关闭chrome重新开启
         self.total_page = 0
 

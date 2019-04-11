@@ -45,6 +45,8 @@ class HSArchetypeSpider(scrapy.Spider):
             for arche in archetype_list_items:
                 archetype_name = arche.css('div.archetype-name::text').extract_first('')
                 faction = archetype_name.split(' ')[-1]
+                if faction == 'Handlock':
+                    faction = 'Warlock'
                 win_rate = arche.css('div.archetype-data::text').extract_first('')
                 detail_url = arche.css('a::attr(href)')[0].extract()
                 detail_url = parse.urljoin(response.url, detail_url)
