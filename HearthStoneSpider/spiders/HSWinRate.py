@@ -2,15 +2,14 @@
 import scrapy
 import re
 import json
-import time
 import datetime
 import requests
+import copy
 from urllib import parse
 from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy import signals
 from scrapy.http import Request
-from scrapy.selector import Selector
 
 from HearthStoneSpider.items import HSWinRateSpiderItem
 from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
@@ -37,7 +36,7 @@ class HSWinRateSpider(scrapy.Spider):
 
     def engine_stopped(self):
         print('HSReport engine end')
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/8gI1Ku43Py') # HSWinRateWebHook
+        # requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/8gI1Ku43Py') # HSWinRateWebHook
         requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/elzp6Ttp2L') # HSWinrateRangeDataWebHook
         requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/ey491UwqmO') # HSWinRateArchetypeWebHook
 
@@ -79,7 +78,7 @@ class HSWinRateSpider(scrapy.Spider):
                     yield hs_item
 
     def parse_detail(self, response):
-        hs_item = response.meta
+        hs_item = copy.copy(response.meta)
         win_rate = response.css('a.winrate-box .box-content h1::text').extract_first('')
         win_rate = re.findall('\d+', win_rate)
         win_rate = '.'.join(win_rate)
@@ -196,7 +195,7 @@ class HSWinRateSpider(scrapy.Spider):
         yield Request(url=url, meta=hs_item, callback=self.matchup_detail, dont_filter=True)
 
     def matchup_detail(self, response):
-        hs_item = response.meta
+        hs_item = copy.copy(response.meta)
         faction_boxes = response.css('div.class-box-container div.box.class-box')
         matchup = {'Druid':[], 'Hunter':[], 'Mage':[], 'Paladin':[], 'Priest':[], 'Rogue':[], 'Shaman':[], 'Warlock':[], 'Warrior':[]}
         for box in faction_boxes:

@@ -10,6 +10,7 @@ if __name__ == '__main__':
     BASE_DIR = os.path.dirname(os.path.realpath(__file__))
     files = {'One_Through_Five': 'One_Through_Five.html',
              'Legend_Only': 'Legend_Only.html'}
+    db = DBManager()
     for range, file in files.items():
         file_name = os.path.join(BASE_DIR, file)
         with open(file_name, 'r', encoding='UTF-8') as f:
@@ -24,14 +25,26 @@ if __name__ == '__main__':
                 for arche in archetype_list_items:
                     archetype_name = arche.css('div.archetype-name::text').extract_first('')
                     faction = archetype_name.split(' ')[-1]
+                    if faction == 'Handlock':
+                        faction = 'Warlock'
                     win_rate = arche.css('div.archetype-data::text').extract_first('')
+
+                    select_sql = "SELECT popularity FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+                                 % (faction, rank_range, archetype_name)
+                    res = db.cursor.execute(select_sql)
+                    if res > 0:
+                        res_deck = db.cursor.fetchone()
+                        popularity1 = float(res_deck.get('popularity'))
+                    else:
+                        popularity1 = 0
+
                     item_dict = {'tier': tier,
                                  'archetype_name': archetype_name,
                                  'faction': faction,
                                  'win_rate': float(win_rate.replace("%", "")),
+                                 'popularity1': popularity1,
                                  'rank_range': rank_range,
                                  'update_time': datetime.now().strftime(SQL_FULL_DATETIME)}
-                    db = DBManager()
                     select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND rank_range=%r AND to_days(update_time)=to_days(now())" % \
                                  (archetype_name, rank_range)
                     res = db.cursor.execute(select_sql)

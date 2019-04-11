@@ -7,7 +7,9 @@
 import os
 import json
 import copy
+import re
 from datetime import datetime
+import numpy as np
 
 from twisted.enterprise import adbapi
 from scrapy.pipelines.images import ImagesPipeline
@@ -64,24 +66,23 @@ class MysqlTwistedPipeline(object):
     def process_item(self, item, spider):
         # 使用twisted将mysql插入变成异步执行
         asynItem = copy.deepcopy(item) # 在通过api爬取数据时，由于速度很快，item会被后面的数据覆盖，因此这里改为深拷贝
-        global query
-        asyncItem = copy.deepcopy(item)
+        global processQuery
         if spider.name=='HearthStone':
-            query = self.dbpool.runInteraction(self.update_cards, asyncItem)
+            processQuery = self.dbpool.runInteraction(self.update_cards, asynItem)
         elif spider.name=='HSReport':
-            query = self.dbpool.runInteraction(self.update_report, asynItem)
+            processQuery = self.dbpool.runInteraction(self.update_report, asynItem)
         elif spider.name=='HSRanking':
-            query = self.dbpool.runInteraction(self.update_rank, asynItem)
+            processQuery = self.dbpool.runInteraction(self.update_rank, asynItem)
         elif spider.name=='HSDecks' or spider.name=='HSWildDecks':
-            query = self.dbpool.runInteraction(self.update_decks, asynItem, spider)
+            processQuery = self.dbpool.runInteraction(self.update_decks, asynItem, spider)
         elif spider.name=='HSWinRate':
-            query = self.dbpool.runInteraction(self.update_winrate, asynItem)
+            processQuery = self.dbpool.runInteraction(self.update_winrate, asynItem)
         elif spider.name=='HSArchetype':
-            query = self.dbpool.runInteraction(self.update_archetype, asynItem)
+            processQuery = self.dbpool.runInteraction(self.update_archetype, asynItem)
         elif spider.name=='HSArenaCards':
-            query = self.dbpool.runInteraction(self.update_arena_cards, asynItem, spider)
-        if query is not None:
-            query.addErrback(self.handle_err, asynItem)
+            processQuery = self.dbpool.runInteraction(self.update_arena_cards, asynItem, spider)
+        if processQuery is not None:
+            processQuery.addErrback(self.handle_err, asynItem)
 
     def handle_err(self, failure, item):
         # 处理异步插入的异常
@@ -102,21 +103,29 @@ class MysqlTwistedPipeline(object):
         item['core_cards'] = json.dumps(item['core_cards'], ensure_ascii=False)
         item['pop_cards'] = json.dumps(item['pop_cards'], ensure_ascii=False)
         item['date'] = datetime.now().strftime(SQL_FULL_DATETIME)
+        select_sql = "SELECT popularity FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
+                     % (item['faction'], item['rank_range'], item['archetype_name'])
+        res = cursor.execute(select_sql)
+        if res>0:
+            res_deck = cursor.fetchone()
+            popularity1 = float(res_deck.get('popularity'))
+        else:
+            popularity1 = 0
+
         select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND rank_range=%r AND to_days(update_time)=to_days(now())" % (item['archetype_name'], item['rank_range'])
         res = cursor.execute(select_sql)
-        # print('测试：', item['archetype_name'], res)
         if res>0:
-            update_sql = "update archetype_archetype set tier=%r, faction=%r, win_rate=%f, game_count=%d, popularity=%f, best_matchup=%r, worst_matchup=%r," \
+            update_sql = "update archetype_archetype set tier=%r, faction=%r, win_rate=%f, game_count=%d, popularity=%f, popularity1=%f, best_matchup=%r, worst_matchup=%r," \
                          " pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, matchup=%r, update_time=%r where archetype_name=%r AND rank_range=%r AND to_days(update_time)=to_days(now())"\
-                         % (item['tier'], item['faction'], item['win_rate'], item['game_count'], item['popularity'], item['best_matchup'], item['worst_matchup'],\
+                         % (item['tier'], item['faction'], item['win_rate'], item['game_count'], item['popularity'], popularity1, item['best_matchup'], item['worst_matchup'],\
                          item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date'], item['archetype_name'], item['rank_range'])
             cursor.execute(update_sql)
         else:
             insert_sql = """
-                insert into archetype_archetype(rank_range, tier, faction, archetype_name, win_rate, game_count, popularity, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, update_time)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                insert into archetype_archetype(rank_range, tier, faction, archetype_name, win_rate, game_count, popularity, popularity1, best_matchup, worst_matchup, pop_deck, best_deck, core_cards, pop_cards, matchup, update_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_sql, (item['rank_range'], item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'],
+            cursor.execute(insert_sql, (item['rank_range'], item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'], popularity1,
                                         item['best_matchup'], item['worst_matchup'], item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
         print('update archetype', item['archetype_name'])
 
@@ -132,6 +141,9 @@ class MysqlTwistedPipeline(object):
                     card.update({'dbfId': res_card.get('dbfId')})
                     card.update({'rarity': res_card.get('rarity')})
                     card.update({'cname': res_card.get('name')})
+                    tile = re.match('^.*\/(.*\.png)', res_card.get('img_tile_link'))
+                    tile = tile.group(1) if tile is not None else ''
+                    card.update({'tile': tile})
             item['core_cards'] = json.dumps(item.get('core_cards'), ensure_ascii=False)
             item['pop_cards'] = json.dumps(item.get('pop_cards'), ensure_ascii=False)
         select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
@@ -176,7 +188,7 @@ class MysqlTwistedPipeline(object):
             return
         try:
             for card in card_list:
-                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
+                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r AND artist is not null" % card['name']
                 cursor.execute(select_sql)
                 res_card = cursor.fetchone()
                 # 用于生成卡组代码
@@ -192,6 +204,9 @@ class MysqlTwistedPipeline(object):
                 card.update({'dbfId': res_card.get('dbfId')})
                 card.update({'rarity': res_card.get('rarity')})
                 card.update({'cname': res_card.get('name')})
+                tile = re.match('^.*\/(.*\.png)', res_card.get('img_tile_link'))
+                tile = tile.group(1) if tile is not None else ''
+                card.update({'tile': tile})
             hsDeck = HearthStoneDeck(hero=item['faction'], cards=hsCards)
             deck_code = hsDeck.genDeckString()
         except Exception as e:
@@ -379,6 +394,8 @@ class MysqlTwistedPipeline(object):
         del res_card['audio_death_zh']
         del res_card['audio_trigger_zh']
         del res_card['eflavor']
+        del res_card['img_card_link']
+        del res_card['img_tile_link']
         item.update(res_card)
         # 清除item中为None的字段
         s_key = list(item.keys())
@@ -404,6 +421,7 @@ class MysqlTwistedPipeline(object):
                 item.update({'ifanId': res.get('_id')})
                 self.insert(cursor, item, 'cards_arenacards')
 
+        # 统计用数据
         if item.get('classification') == 'ALL':
             del item['extra_data_flag']
             select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r AND extra_data=1 AND to_days(update_time)=to_days(now())" % (item.get('dbfId'))
@@ -415,6 +433,22 @@ class MysqlTwistedPipeline(object):
                 self.update(cursor, item, {'id': res_card.get('id')}, 'cards_arenacards')
             else:
                 self.insert(cursor, item, 'cards_arenacards')
+
+            select_sql = "SELECT deck_pop FROM cards_arenacards WHERE dbfId=%r AND extra_data=1" % (item.get('dbfId'))
+            cursor.execute(select_sql)
+            res_card = cursor.fetchall()
+            deck_pop_list = [float(list(x.values())[0]) for x in res_card]
+            stdev = np.std(deck_pop_list, ddof=1)
+            mean = np.mean(deck_pop_list)
+            data = item._values
+            data.update({'deck_pop_mean': mean, 'deck_pop_stdev': stdev})
+
+            select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r AND extra_data=1 AND to_days(update_time)=to_days(now())" % (data.get('dbfId'))
+            cursor.execute(select_sql)
+            res_card = cursor.fetchone()
+            self.update(cursor, data, {'id': res_card.get('id')}, 'cards_arenacards')
+            pass
+
         # tableID = spider.ifanr.tablesID['arena_cards']
         # print('ifanr query', item['classification'], item['dbfId'])
         # query = {

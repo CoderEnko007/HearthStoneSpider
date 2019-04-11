@@ -22,7 +22,8 @@ if __name__ == '__main__':
                 faction = box.css('div.box-title span.player-class::text').extract_first('')
                 archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
                 archetype_list_other_item = box.css('div.grid-container')[2].css('span.player-class div.tooltip-wrapper::text').extract_first('')
-                archetype_list.append(archetype_list_other_item)
+                if archetype_list_other_item != '':
+                    archetype_list.append(archetype_list_other_item)
                 data_cells = box.css('div.grid-container')[3].css('.table-cell::text').extract()
                 data_list = []
                 list_temp = []
@@ -33,15 +34,19 @@ if __name__ == '__main__':
                         list_temp = []
                         continue
                 for i, archetype in enumerate(archetype_list):
-                    item_dict = {
-                        'rank_range': rank_range,
-                        'faction': faction,
-                        'archetype': archetype,
-                        'winrate': float(data_list[i][0].replace("%", "")),
-                        'popularity': float(data_list[i][1].replace("%", "")),
-                        'games': int(data_list[i][2].replace(',', '')),
-                        'create_time': datetime.now().strftime(SQL_FULL_DATETIME)
-                    }
+                    try:
+                        item_dict = {
+                            'rank_range': rank_range,
+                            'faction': faction,
+                            'archetype': archetype,
+                            'winrate': float(data_list[i][0].replace("%", "")),
+                            'popularity': float(data_list[i][1].replace("%", "")),
+                            'games': int(data_list[i][2].replace(',', '')),
+                            'create_time': datetime.now().strftime(SQL_FULL_DATETIME)
+                        }
+                    except Exception as e:
+                        print(e)
+                        print(i, archetype, data_list)
                     print(item_dict)
                     select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
                                  % (item_dict['faction'], item_dict['rank_range'], item_dict['archetype'])

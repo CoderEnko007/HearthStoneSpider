@@ -3,3 +3,5 @@ __pycache__
 *.pyc
 HearthStoneSpider/images/*
 ghostdriver.log
+singleSpiders/archetype/*.html
+singleSpiders/winrate/*.html

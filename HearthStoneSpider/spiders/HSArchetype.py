@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import scrapy
-import datetime
 import re
 import json
 import requests
+import copy
 from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy import signals
@@ -35,7 +35,6 @@ class HSArchetypeSpider(scrapy.Spider):
 
     def engine_stopped(self):
         print('HSArchetype engine end')
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/UJ15lz8GSk') # HSArchetypeWebHook
         requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/RGFLY7CmCp') # HSArchetypeRangeDataWebHook
 
     def parse(self, response):
@@ -139,20 +138,25 @@ class HSArchetypeSpider(scrapy.Spider):
         # pop_cards = json.dumps(pop_cards, ensure_ascii=False)
 
         hs_item = HSArchetypeSpiderItem()
-        hs_item['tier'] = response.meta.get('tier')
-        hs_item['faction'] = response.meta.get('faction')
-        hs_item['archetype_name'] = response.meta.get('archetype_name')
+        meta = copy.copy(response.meta)
+        hs_item['tier'] = meta.get('tier')
+        hs_item['faction'] = meta.get('faction')
+        hs_item['archetype_name'] = meta.get('archetype_name')
         try:
-            hs_item['win_rate'] = float(response.meta.get('win_rate').replace("%", ""))
+            hs_item['win_rate'] = float(meta.get('win_rate').replace("%", ""))
         except Exception as e:
-            print('yf_log', e, response.meta.get('win_rate'))
+            print('yf_log', e, meta.get('win_rate'))
             hs_item['win_rate'] = 0
         try:
             hs_item['popularity'] = float(popularity)
         except Exception as e:
             print('yf_log', e, popularity)
             hs_item['popularity'] = 0
-        hs_item['game_count'] = int(game_count)
+        try:
+            hs_item['game_count'] = int(game_count)
+        except ValueError as e:
+            print('yf_log game_count', e, game_count)
+            hs_item['game_count'] = 0
         hs_item['best_matchup'] = best_matchup
         hs_item['worst_matchup'] = worst_matchup
         hs_item['pop_deck'] = pop_deck

@@ -130,7 +130,7 @@ class JSPageMiddleware(object):
         elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks') \
              and re.match('https://hsreplay.net/decks/.*/', request.url):
             try:
-                element = WebDriverWait(spider.browser, 5).until(
+                element = WebDriverWait(spider.browser, 10).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, 'table.table-striped tbody tr td.winrate-cell'))
                 )
                 print(element)

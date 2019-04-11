@@ -3,13 +3,18 @@ import scrapy
 import datetime
 import json
 import re
+import copy
+import sys
+import os
 from urllib import parse
 from selenium import webdriver
 from scrapy import signals
 from pydispatch import dispatcher
 from scrapy.http import Request
-import requests
-# import pyperclip
+from scrapy.cmdline import execute
+
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from HearthStoneSpider.items import HSDecksSpiderItem
 from HearthStoneSpider.tools.utils import reMatchFormat
@@ -35,6 +40,8 @@ class HSDecksSpider(scrapy.Spider):
         super(HSDecksSpider, self).__init__()
         if params == 'trending':
             self.start_urls = ['https://hsreplay.net/decks/trending/']
+        elif params == 'interrupt':
+            self.start_urls = ['https://hsreplay.net/decks/#page=71']
         else:
             self.start_urls = ['https://hsreplay.net/decks/']
         chrome_opt = webdriver.ChromeOptions()
@@ -46,7 +53,9 @@ class HSDecksSpider(scrapy.Spider):
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
         # dispatcher.connect(self.item_scraped, signals.item_scraped)
         self.ifanr = iFanr()
-        self.current_page = 1
+        self.interrupt_page = 70
+        print('测试中断 params=',params)
+        self.current_page = self.interrupt_page+1 if params == 'interrupt' else 1 # 70页需要关闭chrome重新开启
         self.total_page = 0
 
     def spider_closed(self):
@@ -56,6 +65,8 @@ class HSDecksSpider(scrapy.Spider):
     def engine_stopped(self):
         print('HSDecks engine end')
         # requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/z1s4JcQZcx')
+        # if self.current_page==self.interrupt_page:
+        #     execute(['scrapy', 'crawl', 'HSDecks', '-a', "params=interrupt"])
 
     def item_scraped(self, response, spider):
         print('item_scraped end')
@@ -65,28 +76,28 @@ class HSDecksSpider(scrapy.Spider):
         mode = 'Standard' # 这里只爬取标准模式卡组
         last_30_days = True # 默认是最近30天的卡组
         if response.url.find('trending')>0:
-            deck_nodes = response.css('div.deck-list>ul>li')
+            deck_nodes = response.css('.deck-list>ul>li')
             trending_flag = True
         else:
             if response.url.find('LAST_30_DAYS')>0:
                 last_30_days = True
             else:
                 last_30_days = False
-            deck_nodes = response.css('div.deck-list>ul>li')[1:]
+            deck_nodes = response.css('.deck-list>ul>li')[1:]
 
         # deck_nodes = response.css('div.deck-list>ul>li')[-2:]
         for item in deck_nodes:
             deck_id = item.css('a::attr(href)').extract_first('')
             deck_id = reMatchFormat('\/.*\/(.*)\/', deck_id.strip())
-            faction = item.css('div.deck-tile::attr(data-card-class)').extract_first('').capitalize()
-            deck_name = item.css('div.deck-tile span.deck-name::text').extract_first('')
-            dust_cost = item.css('div.deck-tile span.dust-cost::text').extract_first('')
-            win_rate = item.css('div.deck-tile span.win-rate::text').extract_first('')
+            faction = item.css('.deck-tile::attr(data-card-class)').extract_first('').capitalize()
+            deck_name = item.css('.deck-tile .deck-name::text').extract_first('')
+            dust_cost = item.css('.deck-tile .dust-cost::text').extract_first('')
+            win_rate = item.css('.deck-tile .win-rate::text').extract_first('')
             win_rate = re.findall('\d+', win_rate)
             win_rate = '.'.join(win_rate)
-            game_count = item.css('div.deck-tile span.game-count::text').extract_first('')
+            game_count = item.css('.deck-tile .game-count::text').extract_first('')
             game_count = game_count.replace(',', '')
-            duration = item.css('div.deck-tile div.duration::text').extract_first('')
+            duration = item.css('.deck-tile .duration::text').extract_first('')
             duration = reMatchFormat('.*?(\d*\.?\d*).*', duration.strip())
             background_img = item.css('li::attr(style)').extract_first('')
             background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)
@@ -112,6 +123,10 @@ class HSDecksSpider(scrapy.Spider):
                 print('yf_log total_page:', self.total_page)
             if self.total_page > 0:
                 self.current_page += 1
+                # 爬取一半需要重启webdriver
+                if self.current_page == self.interrupt_page:
+                    print('已经爬取了%s页,暂时停止爬虫'%self.interrupt_page)
+                    return
                 if self.current_page <= self.total_page:
                     if last_30_days:
                         next_url = 'https://hsreplay.net/decks/#timeRange=LAST_30_DAYS&page={}'.format(self.current_page)
@@ -128,18 +143,19 @@ class HSDecksSpider(scrapy.Spider):
             #         yield Request(url=next_url, callback=self.parse, dont_filter=True)
 
     def parse_detail(self, response):
+        meta = copy.copy(response.meta)
         hs_item = HSDecksSpiderItem()
-        hs_item['deck_id'] = response.meta.get('deck_id', '')
-        hs_item['faction'] = response.meta.get('faction', '')
-        hs_item['deck_name'] = response.meta.get('deck_name', '')
-        hs_item['dust_cost'] = response.meta.get('dust_cost', '')
-        hs_item['win_rate'] = float(response.meta.get('win_rate', ''))
-        hs_item['game_count'] = int(response.meta.get('game_count', ''))
-        hs_item['duration'] = float(response.meta.get('duration', ''))
-        hs_item['background_img'] = response.meta.get('background_img', '')
-        hs_item['trending_flag'] = response.meta.get('trending_flag', '')
-        hs_item['mode'] = response.meta.get('mode', '')
-        hs_item['last_30_days'] = response.meta.get('last_30_days', '')
+        hs_item['deck_id'] = meta.get('deck_id', '')
+        hs_item['faction'] = meta.get('faction', '')
+        hs_item['deck_name'] = meta.get('deck_name', '')
+        hs_item['dust_cost'] = meta.get('dust_cost', '')
+        hs_item['win_rate'] = float(meta.get('win_rate', ''))
+        hs_item['game_count'] = int(meta.get('game_count', ''))
+        hs_item['duration'] = float(meta.get('duration', ''))
+        hs_item['background_img'] = meta.get('background_img', '')
+        hs_item['trending_flag'] = meta.get('trending_flag', '')
+        hs_item['mode'] = meta.get('mode', '')
+        hs_item['last_30_days'] = meta.get('last_30_days', '')
 
         real_game_count = response.css('.infobox section ul span.infobox-value').extract()
         if real_game_count:

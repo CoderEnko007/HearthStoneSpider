@@ -14,7 +14,7 @@ from HearthStoneSpider.tools.ifan import iFanr
 class HSArenaCardsSpider(scrapy.Spider):
     name = 'HSArenaCards'
     allowed_domains = ['hsreplay.net']
-    start_urls = ['https://hsreplay.net/analytics/query/card_played_popularity_report/?GameType=ARENA&TimeRange=LAST_14_DAYS']
+    start_urls = ['https://hsreplay.net/analytics/query/card_played_popularity_report/?GameType=ARENA']
 
     def __init__(self, params=None):
         super(HSArenaCardsSpider, self).__init__()
@@ -40,7 +40,7 @@ class HSArenaCardsSpider(scrapy.Spider):
                 card['played_winrate'] = round(item.get('winrate'), 4) if item.get('winrate') else None
                 card_played_list.append(card)
             self.cards_series[faction] = card_played_list
-        yield Request(url='https://hsreplay.net/analytics/query/card_included_popularity_report/?GameType=ARENA&TimeRange=CURRENT_PATCH',
+        yield Request(url='https://hsreplay.net/analytics/query/card_included_popularity_report/?GameType=ARENA',
                       callback=self.final_parse, dont_filter=True)
 
     def final_parse(self, response):
