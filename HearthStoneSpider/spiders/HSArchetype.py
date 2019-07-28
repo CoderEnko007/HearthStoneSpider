@@ -17,10 +17,11 @@ from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
 class HSArchetypeSpider(scrapy.Spider):
     name = 'HSArchetype'
     allowed_domains = ['hsreplay.net/meta']
-    start_urls = ['http://hsreplay.net/meta/']
+    start_urls = ['http://hsreplay.net/meta/#timeFrame=LAST_7_DAYS']
 
     def __init__(self):
         super(HSArchetypeSpider, self).__init__()
+        self.saved_count = 0
         chrome_opt = webdriver.ChromeOptions()
         chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         chrome_opt.add_argument('--disable-gpu')

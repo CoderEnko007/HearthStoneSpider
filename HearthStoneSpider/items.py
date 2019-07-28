@@ -138,6 +138,7 @@ class HSArenaCardsSpiderItem(scrapy.Item):
     text = scrapy.Field()
     artist = scrapy.Field()
     collectible = scrapy.Field()
+    img_tile_link = scrapy.Field()
     update_time = scrapy.Field()
     extra_data = scrapy.Field()
     extra_data_flag = scrapy.Field()

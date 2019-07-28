@@ -25,7 +25,10 @@ class HSRankingSpider(scrapy.Spider):
 
     def engine_stopped(self):
         print('HSRanking engine end')
+        # 炉石传说情报站webhook
         requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/ndhvGONeNt')
+        # 炉石数据可视化webhook
+        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/T1vA85AhPG')
 
     def parse(self, response):
         game_type = {'Standard': 2, 'Wild': 30, 'Arena': 3}

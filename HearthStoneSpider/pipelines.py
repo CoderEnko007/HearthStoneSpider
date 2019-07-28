@@ -10,6 +10,7 @@ import copy
 import re
 from datetime import datetime
 import numpy as np
+import requests
 
 from twisted.enterprise import adbapi
 from scrapy.pipelines.images import ImagesPipeline
@@ -20,7 +21,8 @@ import MySQLdb
 import MySQLdb.cursors
 
 from HearthStoneSpider.tools.pyhearthstone import HearthStoneDeck
-from HearthStoneSpider.settings import SQL_FULL_DATETIME
+from HearthStoneSpider.settings import SQL_FULL_DATETIME, ARENA_FILES
+from HearthStoneSpider.tools.utils import DecimalEncoder
 
 class MysqlTwistedPipeline(object):
     def __init__(self, dbpool):
@@ -51,17 +53,32 @@ class MysqlTwistedPipeline(object):
         return cls(dbpool)
 
     def insert(self, cursor, data, table):
-        ls = [(k, data[k]) for k in data if data[k]]
+        ls = [(k, data[k]) for k in data if data[k] is not None]
         sql = 'insert into %s (' % table + ','.join([i[0] for i in ls]) + \
               ') values (' + ','.join(['%r' % i[1] for i in ls]) + ');'
         cursor.execute(sql)
         print('insert', data.get('name'), data.get('classification'))
 
-    def update(self, cursor, dt_update, dt_condition, table):
+    def update(self, cursor, dt_update, dt_condition, table, today=False):
         sql = 'UPDATE %s SET ' % table + ','.join(['%s=%r' % (k, dt_update[k]) for k in dt_update]) \
-              + ' WHERE ' + ' AND '.join(['%s=%r' % (k, dt_condition[k]) for k in dt_condition]) + ';'
+              + ' WHERE ' + ' AND '.join(['%s=%r' % (k, dt_condition[k]) for k in dt_condition])
+        if today:
+            sql = sql+' AND to_days(update_time)=to_days(now())'
         cursor.execute(sql)
         print('update', dt_update.get('name'), dt_update.get('classification'))
+
+    def select(self, cursor, table, cols='*', condition=None, today=True):
+        if condition is None:
+            sql = 'SELECT %s ' % cols + 'FROM %s ' % table
+            if today:
+                sql = '{} WHERE to_days(update_time)=to_days(now())'.format(sql)
+        else:
+            sql = 'SELECT %s ' % cols + 'FROM %s ' % table + 'WHERE '+ ' AND '.join(['%s=%r' % (k, condition[k]) for k in condition])
+            if today:
+                sql = '{} AND to_days(update_time)=to_days(now())'.format(sql)
+        cursor.execute(sql)
+        fc = cursor.fetchall()
+        return fc
 
     def process_item(self, item, spider):
         # 使用twisted将mysql插入变成异步执行
@@ -78,9 +95,11 @@ class MysqlTwistedPipeline(object):
         elif spider.name=='HSWinRate':
             processQuery = self.dbpool.runInteraction(self.update_winrate, asynItem)
         elif spider.name=='HSArchetype':
-            processQuery = self.dbpool.runInteraction(self.update_archetype, asynItem)
+            processQuery = self.dbpool.runInteraction(self.update_archetype, asynItem, spider)
         elif spider.name=='HSArenaCards':
             processQuery = self.dbpool.runInteraction(self.update_arena_cards, asynItem, spider)
+        elif spider.name=='BestDeck':
+            processQuery = self.dbpool.runInteraction(self.update_decks, asynItem, spider)
         if processQuery is not None:
             processQuery.addErrback(self.handle_err, asynItem)
 
@@ -89,12 +108,12 @@ class MysqlTwistedPipeline(object):
         print('错误:', failure)
         # print('aaaaaaa', item)
 
-    def update_archetype(self, cursor, item):
+    def update_archetype(self, cursor, item, spider):
         core_cards = item['core_cards']
         pop_cards = item['pop_cards']
         for cards in [core_cards, pop_cards]:
             for card in cards:
-                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
+                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r AND artist is not null" % card['name']
                 cursor.execute(select_sql)
                 res_card = cursor.fetchone()
                 card.update({'dbfId': res_card.get('dbfId')})
@@ -127,7 +146,13 @@ class MysqlTwistedPipeline(object):
             """
             cursor.execute(insert_sql, (item['rank_range'], item['tier'], item['faction'], item['archetype_name'], item['win_rate'], item['game_count'], item['popularity'], popularity1,
                                         item['best_matchup'], item['worst_matchup'], item['pop_deck'], item['best_deck'], item['core_cards'], item['pop_cards'], item['matchup'], item['date']))
-        print('update archetype', item['archetype_name'])
+        archetypes_scraped = spider.crawler.stats.get_value('archetypes_scraped')
+        spider.saved_count += 1
+        print('update archetype', item['archetype_name'], archetypes_scraped, spider.saved_count)
+        if (spider.saved_count == archetypes_scraped):
+            requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/RGFLY7CmCp')  # HSArchetypeRangeDataWebHook
+            print('update archetype end, up to ifanr')
+
 
     def update_winrate(self, cursor, item):
         if item['archetype'] != 'Other':
@@ -135,7 +160,7 @@ class MysqlTwistedPipeline(object):
             pop_cards = item.get('pop_cards')
             for cards in [core_cards, pop_cards]:
                 for card in cards:
-                    select_sql = "SELECT * FROM cards_hscards WHERE ename=%r" % card['name']
+                    select_sql = "SELECT * FROM cards_hscards WHERE ename=%r AND artist is not null" % card['name']
                     cursor.execute(select_sql)
                     res_card = cursor.fetchone()
                     card.update({'dbfId': res_card.get('dbfId')})
@@ -159,7 +184,7 @@ class MysqlTwistedPipeline(object):
             else:
                 update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, create_time=%r where faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
                              % (item['winrate'], item['popularity'], item['games'], item['date'], item['faction'], item['rank_range'], item['archetype'])
-
+            print('测试: update ', item['archetype'])
             cursor.execute(update_sql)
         else:
             if item['archetype'] != 'Other':
@@ -175,6 +200,10 @@ class MysqlTwistedPipeline(object):
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(insert_sql, (item['rank_range'], item['faction'], item['archetype'], item['winrate'], item['popularity'], item['games'], item['date']))
+            print('测试: insert ', item['archetype'])
+
+    def update_best_deck(self, cursor, item):
+        pass
 
     def update_decks(self, cursor, item, spider):
         hsCards = []
@@ -250,6 +279,8 @@ class MysqlTwistedPipeline(object):
             data['dust_cost'] = int(data['dust_cost'])
         if res:
             if (res.get('meta').get('total_count')):
+                if spider.name == 'BestDeck':
+                    return
                 deck = res.get('objects')[0] if res.get('objects') else 'not found deck_id:%s' % deck_id
                 if item['last_30_days'] and not item['trending_flag']:
                     data.pop('last_30_days')
@@ -258,6 +289,7 @@ class MysqlTwistedPipeline(object):
                 print('last_30_days:', item['last_30_days'])
                 spider.ifanr.put_table_data(tableID=tableID, id=deck['id'], data=data)
             else:
+                print('insert best deck', data)
                 spider.ifanr.add_table_data(tableID=tableID, data=data)
         else:
             print('yf_log res is none')
@@ -327,7 +359,7 @@ class MysqlTwistedPipeline(object):
         select_sql = "SELECT * FROM rank_hsranking WHERE game_type=%r AND faction=%r AND to_days(report_time)=to_days(now())" % (item['game_type'], item['faction'])
         res = cursor.execute(select_sql)
         if res > 0:
-            update_sql = "update rank_hsranking set game_type=%r, faction=%r, popularity=%.2f, win_rate=%.2f, total_games=%d, report_time=%r where mode=%r AND name=%r AND to_days(report_time)=to_days(now())" \
+            update_sql = "update rank_hsranking set game_type=%r, faction=%r, popularity=%.2f, win_rate=%.2f, total_games=%d, report_time=%r where game_type=%r AND faction=%r AND to_days(report_time)=to_days(now())" \
                          % (item['game_type'], item['faction'], item['popularity'], item['win_rate'], item['total_games'], item['date'], item['game_type'], item['faction'])
             cursor.execute(update_sql)
         else:
@@ -367,35 +399,42 @@ class MysqlTwistedPipeline(object):
             """
             cursor.execute(insert_sql, (item['mana'], item['hp'], item['attack'], item['cname'], item['description'], item['ename'], item['faction'], clazz, item['race'], img, rarity, item['rule'], series_id, mode, thumbnail))
 
-    def update_arena_cards(self, cursor, item, spider):
-        if item.get('deck_pop') <= 0.01: return
-        standard_series_select_sql = "SELECT id FROM cards_series WHERE mode='Standard'"
-        cursor.execute(standard_series_select_sql)
-        res = cursor.fetchall()
-        standard_series = []
-        for set_id in res:
-            standard_series.append(set_id['id'])
+    def handle_arena_data(self, cursor, spider):
+        spider.scraped_count += 1
+        print('scraped_count:{}, temp_count: {}, total_count:{}'.format(spider.scraped_count, spider.temp_count,
+                                                                        spider.total_count))
+        if spider.scraped_count == spider.total_count:
+            fc = self.select(cursor, 'cards_arenacards', cols="name, dbfId, hsId, cost, rarity, cardClass, classification, ename, img_tile_link,"
+                                                              "deck_pop, copies, deck_winrate, times_played, played_pop, played_winrate",
+                           today=True)
+            filename = "{}/{}_arena_json_file.json".format(ARENA_FILES, datetime.now().strftime('%Y%m%d_%H%M%S'))
+            json_str = json.dumps({'data': fc}, indent=4, ensure_ascii=False, cls=DecimalEncoder)
+            with open(filename, 'w', encoding='utf-8') as json_file:
+                json_file.write(json_str)
+            res = spider.ifanr.import_table_data(tableID=spider.ifanr.tablesID['arena_cards'], filename=filename)
+            print('import_table_data', res)
 
-        select_sql = "SELECT * FROM cards_hscards WHERE dbfId=%r" % item.get('dbfId')
+    def update_arena_cards(self, cursor, item, spider):
+        spider.temp_count += 1
+        if item.get('deck_pop') <= 0.01:
+            self.handle_arena_data(cursor, spider)
+            return
+
+        select_sql = "SELECT * FROM cards_hscards WHERE dbfId=%r AND artist is not null" % item.get('dbfId')
         res = cursor.execute(select_sql)
-        if res<=0:  return
+        if res<=0:
+            self.handle_arena_data(cursor, spider)
+            return
         res_card = cursor.fetchone()
         if item.get('classification') != 'ALL' and (res_card['cardClass'] != 'Neutral' and item.get('classification').upper() != res_card['cardClass'].upper()):
+            self.handle_arena_data(cursor, spider)
             return
-        # 如果不是标准模式下的单卡则退出
-        if res_card['set_id'] not in standard_series: return
-        del res_card['id']
-        del res_card['audio_play_en']
-        del res_card['audio_attack_en']
-        del res_card['audio_death_en']
-        del res_card['audio_trigger_en']
-        del res_card['audio_play_zh']
-        del res_card['audio_attack_zh']
-        del res_card['audio_death_zh']
-        del res_card['audio_trigger_zh']
-        del res_card['eflavor']
-        del res_card['img_card_link']
-        del res_card['img_tile_link']
+        card_tile_url = res_card['img_tile_link']
+        # 移除掉HSArenaCardsSpiderItem中不存在的item项
+        for key in list(res_card):
+            test = item.fields
+            if key not in item.fields:
+                res_card.pop(key)
         item.update(res_card)
         # 清除item中为None的字段
         s_key = list(item.keys())
@@ -405,49 +444,68 @@ class MysqlTwistedPipeline(object):
         item['update_time'] = datetime.now().strftime(SQL_FULL_DATETIME)
 
         tableID = spider.ifanr.tablesID['arena_cards']
-        select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r and extra_data=0" % (item.get('dbfId'), item.get('classification'))
+        select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r and to_days(update_time)=to_days(now())" \
+                     % (item.get('dbfId'), item.get('classification'))
         res = cursor.execute(select_sql)
-        data = item._values
         item['extra_data'] = 0 #统计用数据的标识，为false的需要同步到知晓云，否则只更新到阿里云
+        data = item._values
+        data['img_tile_link'] = card_tile_url
+
+        # select_sql = "SELECT deck_pop FROM cards_arenacards WHERE dbfId=%r AND classification=%r" % (item.get('dbfId'), item.get('classification'))
+        # cursor.execute(select_sql)
+        # res_card = cursor.fetchall()
+        # deck_pop_list = [float(list(x.values())[0]) for x in res_card]
+        # stdev = round(np.std(deck_pop_list, ddof=1), 4)
+        # mean = round(np.mean(deck_pop_list), 4)
+        # data = item._values
+        # data.update({'deck_pop_mean': mean, 'deck_pop_stdev': stdev})
+
         if item['extra_data_flag'] == False:
             del item['extra_data_flag']
             if res>0:
                 res_card = cursor.fetchone()
-                ifanId = res_card.get('ifanId') if res_card is not None else None  # 没有id没处理?
-                self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification'), 'extra_data': 0}, 'cards_arenacards')
-                spider.ifanr.put_table_data(tableID=tableID, id=ifanId, data=data)
+                del data['update_time']
+                self.update(cursor, data, {'dbfId': data.get('dbfId'), 'classification': data.get('classification')}, 'cards_arenacards', today=True)
             else:
-                res = spider.ifanr.add_table_data(tableID=tableID, data=data)
-                item.update({'ifanId': res.get('_id')})
-                self.insert(cursor, item, 'cards_arenacards')
+                self.insert(cursor, data, 'cards_arenacards')
 
+        self.handle_arena_data(cursor, spider)
+
+        # select_sql = "SELECT deck_pop FROM cards_arenacards WHERE dbfId=%r AND classification=%r" % (item.get('dbfId'), item.get('classification'))
+        # cursor.execute(select_sql)
+        # res_card = cursor.fetchall()
+        # deck_pop_list = [float(list(x.values())[0]) for x in res_card]
+        # stdev = round(np.std(deck_pop_list, ddof=1), 4)
+        # mean = round(np.mean(deck_pop_list), 4)
+        # data.update({'deck_pop_mean': mean, 'deck_pop_stdev': stdev})
+        # self.update(cursor, data, {'dbfId': data.get('dbfId'), 'classification': data.get('classification')}, 'cards_arenacards', today=True)
+        # self.update(cursor, data, {'id': res_card.get('id')}, 'cards_arenacards')
         # 统计用数据
-        if item.get('classification') == 'ALL':
-            del item['extra_data_flag']
-            select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r AND extra_data=1 AND to_days(update_time)=to_days(now())" % (item.get('dbfId'))
-            res = cursor.execute(select_sql)
-            res_card = cursor.fetchone()
-            item['extra_data'] = 1  # 统计用数据的标识，为false的需要同步到知晓云，否则只更新到阿里云
-            if res>0:
-                # self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification'), 'extra_data': 1}, 'cards_arenacards')
-                self.update(cursor, item, {'id': res_card.get('id')}, 'cards_arenacards')
-            else:
-                self.insert(cursor, item, 'cards_arenacards')
-
-            select_sql = "SELECT deck_pop FROM cards_arenacards WHERE dbfId=%r AND extra_data=1" % (item.get('dbfId'))
-            cursor.execute(select_sql)
-            res_card = cursor.fetchall()
-            deck_pop_list = [float(list(x.values())[0]) for x in res_card]
-            stdev = np.std(deck_pop_list, ddof=1)
-            mean = np.mean(deck_pop_list)
-            data = item._values
-            data.update({'deck_pop_mean': mean, 'deck_pop_stdev': stdev})
-
-            select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r AND extra_data=1 AND to_days(update_time)=to_days(now())" % (data.get('dbfId'))
-            cursor.execute(select_sql)
-            res_card = cursor.fetchone()
-            self.update(cursor, data, {'id': res_card.get('id')}, 'cards_arenacards')
-            pass
+        # if item.get('classification') == 'ALL':
+        #     del item['extra_data_flag']
+        #     select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r AND extra_data=1 AND to_days(update_time)=to_days(now())" % (item.get('dbfId'))
+        #     res = cursor.execute(select_sql)
+        #     res_card = cursor.fetchone()
+        #     item['extra_data'] = 1  # 统计用数据的标识，为false的需要同步到知晓云，否则只更新到阿里云
+        #     if res>0:
+        #         # self.update(cursor, item, {'dbfId': item.get('dbfId'), 'classification': item.get('classification'), 'extra_data': 1}, 'cards_arenacards')
+        #         self.update(cursor, item, {'id': res_card.get('id')}, 'cards_arenacards')
+        #     else:
+        #         self.insert(cursor, item, 'cards_arenacards')
+        #
+        #     select_sql = "SELECT deck_pop FROM cards_arenacards WHERE dbfId=%r AND extra_data=1" % (item.get('dbfId'))
+        #     cursor.execute(select_sql)
+        #     res_card = cursor.fetchall()
+        #     deck_pop_list = [float(list(x.values())[0]) for x in res_card]
+        #     stdev = np.std(deck_pop_list, ddof=1)
+        #     mean = np.mean(deck_pop_list)
+        #     data = item._values
+        #     data.update({'deck_pop_mean': mean, 'deck_pop_stdev': stdev})
+        #
+        #     select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r AND extra_data=1 AND to_days(update_time)=to_days(now())" % (data.get('dbfId'))
+        #     cursor.execute(select_sql)
+        #     res_card = cursor.fetchone()
+        #     self.update(cursor, data, {'id': res_card.get('id')}, 'cards_arenacards')
 
         # tableID = spider.ifanr.tablesID['arena_cards']
         # print('ifanr query', item['classification'], item['dbfId'])

@@ -55,7 +55,9 @@ ROBOTSTXT_OBEY = False
 # See https://doc.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
    # 'HearthStoneSpider.middlewares.HearthstonespiderDownloaderMiddleware': 543,
-   'HearthStoneSpider.middlewares.JSPageMiddleware': 1,
+   'HearthStoneSpider.middlewares.RandomProxyMiddleware': 540,
+   'HearthStoneSpider.middlewares.JSPageMiddleware': 543,
+   'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
 }
 
 # Enable or disable extensions
@@ -74,6 +76,8 @@ ITEM_PIPELINES = {
 IMAGES_URLS_FIELD = 'img' # 配置下载图片的地址
 project_dir = os.path.abspath(os.path.dirname(__file__))
 IMAGES_STORE = os.path.join(project_dir, "images") # 配置图片存储的位置
+ARENA_FILES = os.path.join(project_dir, "arenaFiles")
+TOOLS_DIR = os.path.join(project_dir, "tools")
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://doc.scrapy.org/en/latest/topics/autothrottle.html
 AUTOTHROTTLE_ENABLED = True
@@ -105,3 +109,5 @@ SQL_DATETIME_FORMAT = "%Y-%m-%d"
 SQL_FULL_DATETIME = "%Y-%m-%d %H:%M:%S"
 
 COMMANDS_MODULE = 'HearthStoneSpider.commands'
+
+RANDOM_UA_TYPE = 'random'

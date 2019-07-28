@@ -36,12 +36,16 @@ class HSDecksSpider(scrapy.Spider):
         for url in self.start_urls:
             yield Request(url, dont_filter=True)
 
-    def __init__(self, params=None):
+    def __init__(self, params=None, page=None):
         super(HSDecksSpider, self).__init__()
         if params == 'trending':
             self.start_urls = ['https://hsreplay.net/decks/trending/']
         elif params == 'interrupt':
-            self.start_urls = ['https://hsreplay.net/decks/#page=71']
+            self.start_urls = ['https://hsreplay.net/decks/#page=131']
+        elif params == 'page' and page != None:
+            # url = 'https://hsreplay.net/decks/#playerClasses=PRIEST&timeRange=LAST_30_DAYS&archetypes=232&page={}'.format(page)
+            url = 'https://hsreplay.net/decks/#playerClasses=WARRIOR&archetypes=290&timeRange=LAST_30_DAYS&page=8'
+            self.start_urls = [url]
         else:
             self.start_urls = ['https://hsreplay.net/decks/']
         chrome_opt = webdriver.ChromeOptions()
@@ -53,8 +57,9 @@ class HSDecksSpider(scrapy.Spider):
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
         # dispatcher.connect(self.item_scraped, signals.item_scraped)
         self.ifanr = iFanr()
-        self.interrupt_page = 70
+        self.interrupt_page = 110 if params == 'interrupt' else 80
         self.current_page = self.interrupt_page+1 if params == 'interrupt' else 1 # 70页需要关闭chrome重新开启
+        self.params = params
         self.total_page = 0
 
     def spider_closed(self):
@@ -115,7 +120,7 @@ class HSDecksSpider(scrapy.Spider):
                 'last_30_days': last_30_days
             }, callback=self.parse_detail, dont_filter=True)
 
-        if not trending_flag:
+        if not trending_flag and self.params != 'page':
             total_page = response.css('div.paging.paging-top ul.pagination li.hidden-lg span::text').extract_first('')
             if total_page and self.total_page==0:
                 self.total_page = int(re.match('.*\/ ?(\d*)', total_page).group(1))
@@ -123,9 +128,9 @@ class HSDecksSpider(scrapy.Spider):
             if self.total_page > 0:
                 self.current_page += 1
                 # 爬取一半需要重启webdriver
-                if self.current_page == self.interrupt_page:
-                    print('已经爬取了%s页,暂时停止爬虫'%self.interrupt_page)
-                    return
+                # if self.current_page == self.interrupt_page:
+                #     print('已经爬取了%s页,暂时停止爬虫'%self.interrupt_page)
+                #     return
                 if self.current_page <= self.total_page:
                     if last_30_days:
                         next_url = 'https://hsreplay.net/decks/#timeRange=LAST_30_DAYS&page={}'.format(self.current_page)

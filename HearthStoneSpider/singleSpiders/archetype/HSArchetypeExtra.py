@@ -29,20 +29,23 @@ if __name__ == '__main__':
                         faction = 'Warlock'
                     win_rate = arche.css('div.archetype-data::text').extract_first('')
 
-                    select_sql = "SELECT popularity FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+                    select_sql = "SELECT popularity, games FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
                                  % (faction, rank_range, archetype_name)
                     res = db.cursor.execute(select_sql)
                     if res > 0:
                         res_deck = db.cursor.fetchone()
                         popularity1 = float(res_deck.get('popularity'))
+                        game_count = int(res_deck.get('games'))
                     else:
                         popularity1 = 0
+                        game_count = 0
 
                     item_dict = {'tier': tier,
                                  'archetype_name': archetype_name,
                                  'faction': faction,
                                  'win_rate': float(win_rate.replace("%", "")),
                                  'popularity1': popularity1,
+                                 'game_count': game_count,
                                  'rank_range': rank_range,
                                  'update_time': datetime.now().strftime(SQL_FULL_DATETIME)}
                     select_sql = "SELECT * FROM archetype_archetype WHERE archetype_name=%r AND rank_range=%r AND to_days(update_time)=to_days(now())" % \

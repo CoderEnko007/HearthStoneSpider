@@ -18,7 +18,7 @@ from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
 class HSWinRateSpider(scrapy.Spider):
     name = 'HSWinRate'
     allowed_domains = ['hsreplay.net/meta/#tab=archetypes']
-    start_urls = ['https://hsreplay.net/meta/#tab=archetypes']
+    start_urls = ['https://hsreplay.net/meta/#tab=archetypes&timeFrame=LAST_7_DAYS']
 
     def __init__(self):
         super(HSWinRateSpider, self).__init__()

@@ -7,6 +7,7 @@
 
 import re
 import time
+import os
 from scrapy import signals
 from scrapy.http import HtmlResponse
 from datetime import datetime
@@ -14,6 +15,8 @@ from HearthStoneSpider.settings import SQL_FULL_DATETIME
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from fake_useragent import UserAgent
+from HearthStoneSpider.tools.crawl_xici_ip import GetIP
 
 
 class HearthstonespiderSpiderMiddleware(object):
@@ -111,8 +114,24 @@ class HearthstonespiderDownloaderMiddleware(object):
         spider.logger.info('Spider opened: %s' % spider.name)
 
 class JSPageMiddleware(object):
+    def __init__(self, crawler):
+        super(JSPageMiddleware, self).__init__()
+        path = os.path.join(crawler.settings.get('TOOLS_DIR', ''), "user_agent_0.1.11.json")
+        self.ua = UserAgent(path=path)
+        self.ua_type = crawler.settings.get('RANDOM_UA_TYPE', 'random')
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls(crawler)
+
     def process_request(self, request, spider):
+        # 随机更换user-agent
+        def get_ua():
+            return getattr(self.ua, self.ua_type)
+        request.headers.setdefault('User-Agent', get_ua())
         if spider.name=='HearthStone' or spider.name=='HSArenaCards' or spider.name=='HSRanking':
+            return None
+        if spider.name=='BestDeck' and 'http://47.98.187.217' in request.url:
             return None
         spider.browser.get(request.url)
         if spider.name == 'HSWinRate' and 'https://hsreplay.net/archetypes/' in request.url:
@@ -120,28 +139,28 @@ class JSPageMiddleware(object):
                 element = WebDriverWait(spider.browser, 5).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '.deck-box .tech-cards'))
                 )
-                time.sleep(2)
-                print(element)
+                time.sleep(5)
+                print('JSPageMiddleware获取HSWinRate元素', element)
             except Exception as e:
-                print(e)
+                print('JSPageMiddleware异常1',e)
         # elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks') \
         #         and re.match('https://hsreplay.net/decks/.*/', request.url)\
         #         and 'trending' not in request.url:
-        elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks') \
+        elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks' or spider.name == 'BestDeck') \
              and re.match('https://hsreplay.net/decks/.*/', request.url):
             try:
                 element = WebDriverWait(spider.browser, 10).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, 'table.table-striped tbody tr td.winrate-cell'))
                 )
-                print(element)
-                element = WebDriverWait(spider.browser, 5).until(
+                print('JSPageMiddleware获取HSDecks元素1', element)
+                element = WebDriverWait(spider.browser, 10).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '#overview div.card-list-wrapper ul.card-list'))
                 )
-                print(element)
+                print('JSPageMiddleware获取HSDecks元素2', element)
             except Exception as e:
-                print(e)
+                print('JSPageMiddleware异常2', e)
         else:
-            time.sleep(5)
+            time.sleep(10)
         now = datetime.now().strftime(SQL_FULL_DATETIME)
         print('{0}访问:{1}'.format(now, request.url))
         return HtmlResponse(
@@ -150,3 +169,9 @@ class JSPageMiddleware(object):
             encoding='utf-8',
             request=request
         )
+
+class RandomProxyMiddleware(object):
+    def process_request(self, request, spider):
+        if spider.name == 'HSWildDecks' or spider.name == 'HSDecks' or spider.name == 'HSWinRate':
+            get_ip = GetIP()
+            request.meta['proxy'] = get_ip.get_random_ip()

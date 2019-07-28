@@ -46,21 +46,21 @@ class HSDecksSpider(scrapy.Spider):
             last_30_days = True
         else:
             last_30_days = False
-        deck_nodes = response.css('div.deck-list>ul>li')[1:]
+        deck_nodes = response.css('.deck-list>ul>li')[1:]
 
         # deck_nodes = response.css('div.deck-list>ul>li')[-2:]
         for item in deck_nodes:
             deck_id = item.css('a::attr(href)').extract_first('')
             deck_id = reMatchFormat('\/.*\/(.*)\/', deck_id.strip())
-            faction = item.css('div.deck-tile::attr(data-card-class)').extract_first('').capitalize()
-            deck_name = item.css('div.deck-tile span.deck-name::text').extract_first('')
-            dust_cost = item.css('div.deck-tile span.dust-cost::text').extract_first('')
-            win_rate = item.css('div.deck-tile span.win-rate::text').extract_first('')
+            faction = item.css('.deck-tile::attr(data-card-class)').extract_first('').capitalize()
+            deck_name = item.css('.deck-tile .deck-name::text').extract_first('')
+            dust_cost = item.css('.deck-tile .dust-cost::text').extract_first('')
+            win_rate = item.css('.deck-tile .win-rate::text').extract_first('')
             win_rate = re.findall('\d+', win_rate)
             win_rate = '.'.join(win_rate)
-            game_count = item.css('div.deck-tile span.game-count::text').extract_first('')
+            game_count = item.css('.deck-tile .game-count::text').extract_first('')
             game_count = game_count.replace(',', '')
-            duration = item.css('div.deck-tile div.duration::text').extract_first('')
+            duration = item.css('.deck-tile .duration::text').extract_first('')
             duration = reMatchFormat('.*?(\d*\.?\d*).*', duration.strip())
             background_img = item.css('li::attr(style)').extract_first('')
             background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)

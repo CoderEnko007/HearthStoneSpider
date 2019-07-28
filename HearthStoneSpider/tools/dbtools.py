@@ -46,11 +46,15 @@ class DBManager(object):
             rowcount = self.cursor.execute(sql, param)
         return rowcount
 
-    def select(self, table, cols='*', condition=None):
+    def select(self, table, cols='*', condition=None, today=True):
         if condition is None:
             sql = 'SELECT %s ' % cols + 'FROM %s ' % table
+            if today:
+                sql = '{} WHERE to_days(update_time)=to_days(now())'.format(sql)
         else:
-            sql = 'SELECT %s ' % cols + 'FROM %s ' % table + 'WHERE '+ ' AND '.join(['%s=%r' % (k, condition[k]) for k in condition]) + ';'
+            sql = 'SELECT %s ' % cols + 'FROM %s ' % table + 'WHERE '+ ' AND '.join(['%s=%r' % (k, condition[k]) for k in condition])
+            if today:
+                sql = '{} AND to_days(update_time)=to_days(now())'.format(sql)
         self.cursor.execute(sql)
         fc = self.cursor.fetchall()
         return fc
@@ -71,5 +75,6 @@ class DBManager(object):
 
 if __name__ == "__main__":
     db = DBManager()
-    res = db.select('rank_hsranking', condition={'game_type': 'Standard'})
+    # res = db.select('rank_hsranking', condition={'game_type': 'Standard'})
+    res = db.select('cards_arenacards', today=True)
     print(res)

@@ -12,8 +12,8 @@ tablesID = {
     'decks_decks': 53174,
     'standard_decks': 53174,
     'wild_decks': 55625,
-    'arena_cards': 57106,
-    'trending': 53120
+    'arena_cards': 70488, #57106,
+    'trending': 53120,
 }
 
 class iFanr(object):
@@ -47,7 +47,7 @@ class iFanr(object):
         re_dict = json.loads(response.text)
         self.token = re_dict.get('access_token')
 
-    def get_table_data(self, tableID, query):
+    def get_table_data(self, tableID, query=None):
         BASE_API = r'https://cloud.minapp.com/oserve/v1/table/%s/record/' % tableID
         HEADERS = {
             'Authorization': 'Bearer %s' % self.token
@@ -94,6 +94,17 @@ class iFanr(object):
         response = requests.put(url, headers=headers, data=data)
         re_dict = json.loads(response.text)
         # print('update', re_dict)
+
+    def import_table_data(self, tableID, filename):
+        url = r'https://cloud.minapp.com/oserve/v1/table/%s/import/' % tableID
+        headers = {
+            'Authorization': 'Bearer %s' % self.token,
+        }
+        f = {'file': open(filename, 'rb')}
+        response = requests.post(url, headers=headers, files=f)
+        # re_dict = json.loads(response.text)
+        print('update', response)
+        pass
 
 if __name__ == "__main__":
     ifanr = iFanr()
