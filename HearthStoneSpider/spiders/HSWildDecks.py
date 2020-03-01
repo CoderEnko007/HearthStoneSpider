@@ -8,7 +8,7 @@ from selenium import webdriver
 from scrapy import signals
 from pydispatch import dispatcher
 from scrapy.http import Request
-# import pyperclip
+import requests
 
 from HearthStoneSpider.items import HSDecksSpiderItem
 from HearthStoneSpider.tools.utils import reMatchFormat
@@ -20,7 +20,7 @@ class HSDecksSpider(scrapy.Spider):
     name = 'HSWildDecks'
     allowed_domains = ['hsreplay.net/decks/']
     # start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD&timeRange=LAST_30_DAYS']
-    start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD']
+    start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD&wildCard=yes']
 
     def __init__(self):
         super(HSDecksSpider, self).__init__()
@@ -48,7 +48,7 @@ class HSDecksSpider(scrapy.Spider):
             last_30_days = False
         deck_nodes = response.css('.deck-list>ul>li')[1:]
 
-        # deck_nodes = response.css('div.deck-list>ul>li')[-2:]
+        # deck_nodes = response.css('.deck-list>ul>li')[-1:]
         for item in deck_nodes:
             deck_id = item.css('a::attr(href)').extract_first('')
             deck_id = reMatchFormat('\/.*\/(.*)\/', deck_id.strip())
@@ -92,13 +92,6 @@ class HSDecksSpider(scrapy.Spider):
                     next_url = 'https://hsreplay.net/decks/#gameType=RANKED_WILD&page={}'.format(self.current_page)
                 print('yf_log next_url', next_url)
                 yield Request(url=next_url, callback=self.parse, dont_filter=True)
-        # page = response.css('div.paging.paging-top ul.pagination li')
-        # if len(page)>0:
-        #     next_href = page[-1].css('a::attr(href)').extract_first()
-        #     if next_href:
-        #         next_url = 'https://hsreplay.net/decks/#timeRange=LAST_30_DAYS{}'.format(next_href.replace('#', '&'))
-        #         print('yf_log', next_url)
-        #         yield Request(url=next_url, callback=self.parse, dont_filter=True)
 
     def parse_detail(self, response):
         hs_item = HSDecksSpiderItem()
@@ -121,16 +114,15 @@ class HSDecksSpider(scrapy.Spider):
         else:
             hs_item['real_game_count'] = hs_item['game_count']
 
-        card_list_items = response.css('#overview div.card-list-wrapper ul.card-list div.tooltip-wrapper div.card-tile')
+        card_list_items = response.css('#overview .card-list-wrapper .card-list .tooltip-wrapper .card-tile')
         card_list = []
         for item in card_list_items:
             card_cost = int(item.css('span.card-cost::text').extract_first(''))
             card_asset = item.css('div.card-frame img.card-asset::attr(src)').extract_first('')
             card_hsid = card_asset.split('/')[-1].split('.')[0]
-            card_count = item.css('span.card-count::text').extract_first('')
+            card_count = item.css('.card-count::text').extract_first('')
             card_count = int(card_count) if card_count.isdigit() else 1
-            # card_count = re.findall('\d+', card_count)
-            card_name = item.css('span.card-name::text').extract_first('')
+            card_name = item.css('.card-name::text').extract_first('')
             card_list.append({'name': card_name, 'cost': card_cost, 'count': card_count, 'card_hsid': card_hsid})
         hs_item['card_list'] = card_list
 
@@ -138,10 +130,6 @@ class HSDecksSpider(scrapy.Spider):
         turns = turns_field[1].css('td::text').extract() if len(turns_field)>1 else []
         hs_item['turns'] = float(turns[1]) if len(turns)>1 else ''
 
-        # win_rate_cell = response.css('table.table-striped tbody tr td.winrate-cell::text').extract_first('')
-        # print('win_rate_cell', win_rate_cell)
-        # win_rate_cell = win_rate_cell.replace('%', '')
-        # hs_item['real_win_rate'] = float(win_rate_cell)
         win_rate_cell = response.css('table.table-striped tbody tr td.winrate-cell::text').extract()
         if win_rate_cell:
             win_rate_cell = win_rate_cell[0].replace('%', '')
@@ -163,4 +151,30 @@ class HSDecksSpider(scrapy.Spider):
             faction_win_rate.append({'faction': faction, 'win_rate': win_rate})
         hs_item['faction_win_rate'] = json.dumps(faction_win_rate)
         # hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
+        self.crawler.stats.inc_value('decks_scraped')
+        # url = 'https://hsreplay.net/analytics/query/single_deck_mulligan_guide/'
+        # params = {
+        #     'GameType': 'RANKED_WILD',
+        #     'RankRange': 'ALL',
+        #     'Region': 'ALL',
+        #     'PlayerInitiative': 'ALL',
+        #     'deck_id': hs_item['deck_id']
+        # }
+        # header = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36'}
+        # res = requests.get(url=url, params=params, headers=header)
+        # re_dict = json.loads(res.text)
+        # hs_item['mulligan'] = re_dict['series']['data']['ALL']
+        # yield hs_item
+        url = 'https://hsreplay.net/analytics/query/single_deck_mulligan_guide/?GameType=RANKED_WILD&RankRange=ALL&Region=ALL&PlayerInitiative=ALL&deck_id='+hs_item['deck_id']
+        yield Request(url=url, callback=self.parse_mulligan, meta={'data': hs_item}, dont_filter=True)
+
+    def parse_mulligan(self, response):
+        meta = response.meta
+        hs_item = meta.get('data')
+        res_data = response.css('pre::text').extract_first('')
+        if res_data and res_data != '':
+            json_data = json.loads(res_data)
+            hs_item['mulligan'] = json_data['series']['data']['ALL']
+        else:
+            hs_item['mulligan'] = ''
         yield hs_item

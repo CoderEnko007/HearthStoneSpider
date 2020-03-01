@@ -139,28 +139,30 @@ class JSPageMiddleware(object):
                 element = WebDriverWait(spider.browser, 5).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, '.deck-box .tech-cards'))
                 )
-                time.sleep(5)
+                # time.sleep(5)
                 print('JSPageMiddleware获取HSWinRate元素', element)
             except Exception as e:
                 print('JSPageMiddleware异常1',e)
+                time.sleep(5)
         # elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks') \
         #         and re.match('https://hsreplay.net/decks/.*/', request.url)\
         #         and 'trending' not in request.url:
         elif (spider.name == 'HSWildDecks' or spider.name == 'HSDecks' or spider.name == 'BestDeck') \
              and re.match('https://hsreplay.net/decks/.*/', request.url):
             try:
-                element = WebDriverWait(spider.browser, 10).until(
+                element = WebDriverWait(spider.browser, 5).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, 'table.table-striped tbody tr td.winrate-cell'))
                 )
                 print('JSPageMiddleware获取HSDecks元素1', element)
-                element = WebDriverWait(spider.browser, 10).until(
-                    EC.visibility_of_element_located((By.CSS_SELECTOR, '#overview div.card-list-wrapper ul.card-list'))
+                element = WebDriverWait(spider.browser, 5).until(
+                    EC.visibility_of_element_located((By.CSS_SELECTOR, '#overview .card-list-wrapper .card-list'))
                 )
                 print('JSPageMiddleware获取HSDecks元素2', element)
             except Exception as e:
                 print('JSPageMiddleware异常2', e)
+                time.sleep(5)
         else:
-            time.sleep(10)
+            time.sleep(5)
         now = datetime.now().strftime(SQL_FULL_DATETIME)
         print('{0}访问:{1}'.format(now, request.url))
         return HtmlResponse(

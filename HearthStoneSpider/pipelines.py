@@ -11,6 +11,7 @@ import re
 from datetime import datetime
 import numpy as np
 import requests
+from time import strftime, localtime
 
 from twisted.enterprise import adbapi
 from scrapy.pipelines.images import ImagesPipeline
@@ -113,7 +114,8 @@ class MysqlTwistedPipeline(object):
         pop_cards = item['pop_cards']
         for cards in [core_cards, pop_cards]:
             for card in cards:
-                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r AND artist is not null" % card['name']
+                # select_sql = "SELECT * FROM cards_hscards WHERE ename=%r AND artist is not null" % card['name']
+                select_sql = "SELECT * FROM cards_hscards WHERE hsId=%r AND artist is not null" % card['card_hsid']
                 cursor.execute(select_sql)
                 res_card = cursor.fetchone()
                 card.update({'dbfId': res_card.get('dbfId')})
@@ -160,15 +162,18 @@ class MysqlTwistedPipeline(object):
             pop_cards = item.get('pop_cards')
             for cards in [core_cards, pop_cards]:
                 for card in cards:
-                    select_sql = "SELECT * FROM cards_hscards WHERE ename=%r AND artist is not null" % card['name']
+                    select_sql = "SELECT * FROM cards_hscards WHERE hsId=%r AND artist is not null" % card['card_hsid']
                     cursor.execute(select_sql)
                     res_card = cursor.fetchone()
                     card.update({'dbfId': res_card.get('dbfId')})
                     card.update({'rarity': res_card.get('rarity')})
                     card.update({'cname': res_card.get('name')})
-                    tile = re.match('^.*\/(.*\.png)', res_card.get('img_tile_link'))
-                    tile = tile.group(1) if tile is not None else ''
-                    card.update({'tile': tile})
+                    if res_card.get('img_tile_link'):
+                        tile = re.match('^.*\/(.*\.png)', res_card.get('img_tile_link'))
+                        tile = tile.group(1) if tile is not None else ''
+                        card.update({'tile': tile})
+                    else:
+                        card.update({'tile': ''})
             item['core_cards'] = json.dumps(item.get('core_cards'), ensure_ascii=False)
             item['pop_cards'] = json.dumps(item.get('pop_cards'), ensure_ascii=False)
         select_sql = "SELECT * FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())"\
@@ -208,18 +213,34 @@ class MysqlTwistedPipeline(object):
     def update_decks(self, cursor, item, spider):
         hsCards = []
         deck_code = []
+        card_array = []
+        set_array = []
         clazzCount = {'MINION': 0, 'SPELL': 0, 'WEAPON': 0, 'HERO': 0} # 类别组成
         rarityCount = {'FREE': 0, 'COMMON': 0, 'RARE': 0, 'EPIC': 0, 'LEGENDARY': 0} # 稀有统计
         statistic = [0]*8 # 费用统计
+
         card_list = item['card_list']
         if len(card_list) == 0:
-            print('card_list is none', item)
+            print('card_list is none', item['deck_id'])
             return
         try:
             for card in card_list:
-                select_sql = "SELECT * FROM cards_hscards WHERE ename=%r AND artist is not null" % card['name']
+                select_sql = "SELECT * FROM cards_hscards WHERE hsId=%r AND artist is not null" % card['card_hsid']
                 cursor.execute(select_sql)
                 res_card = cursor.fetchone()
+                # 为card_array字段添加单卡的dbfId，用于根据单卡检索卡组
+                card_array.append(res_card.get('dbfId'))
+                # 为set_array字段添加set_id, 用于标记卡组中包含了那些扩展包的单卡
+                if res_card.get('set_id') not in set_array:
+                    set_array.append(res_card.get('set_id'))
+                card.update({'rarity': res_card.get('rarity')})
+                card.update({'cname': res_card.get('name')})
+                if res_card.get('img_tile_link'):
+                    tile = re.match('^.*\/(.*\.png)', res_card.get('img_tile_link'))
+                    tile = tile.group(1) if tile is not None else ''
+                    card.update({'tile': tile})
+                else:
+                    card.update({'tile': ''})
                 # 用于生成卡组代码
                 count = card.get('count')
                 hsCards.append((res_card.get('dbfId'), count))
@@ -233,14 +254,18 @@ class MysqlTwistedPipeline(object):
                 card.update({'dbfId': res_card.get('dbfId')})
                 card.update({'rarity': res_card.get('rarity')})
                 card.update({'cname': res_card.get('name')})
-                tile = re.match('^.*\/(.*\.png)', res_card.get('img_tile_link'))
-                tile = tile.group(1) if tile is not None else ''
-                card.update({'tile': tile})
+                if res_card.get('img_tile_link'):
+                    tile = re.match('^.*\/(.*\.png)', res_card.get('img_tile_link'))
+                    tile = tile.group(1) if tile is not None else ''
+                    card.update({'tile': tile})
+                else:
+                    card.update({'tile': ''})
             hsDeck = HearthStoneDeck(hero=item['faction'], cards=hsCards)
             deck_code = hsDeck.genDeckString()
         except Exception as e:
             print('generate deck code error', e)
         item['card_list'] = json.dumps(item['card_list'], ensure_ascii=False)
+        item['mulligan'] = json.dumps(item['mulligan'], ensure_ascii=False)
         clazzCount = json.dumps(clazzCount, ensure_ascii=False)
         rarityCount = json.dumps(rarityCount, ensure_ascii=False)
         statistic = json.dumps(statistic, ensure_ascii=False)
@@ -273,15 +298,22 @@ class MysqlTwistedPipeline(object):
             'clazzCount': clazzCount,
             'rarityCount': rarityCount,
             'statistic': statistic,
+            'card_array': card_array,
+            'set_array': set_array,
             'create_time': datetime.now().strftime(SQL_FULL_DATETIME)
         })
         if not item['trending_flag']:
             data['dust_cost'] = int(data['dust_cost'])
         if res:
             if (res.get('meta').get('total_count')):
-                if spider.name == 'BestDeck':
-                    return
+                # if spider.name == 'BestDeck':
+                #     return
+                ifanr_deck = res.get('objects')[0]
+                if spider.name == 'BestDeck' and ifanr_deck['last_30_days']:
+                    data['last_30_days'] = ifanr_deck['last_30_days']
                 deck = res.get('objects')[0] if res.get('objects') else 'not found deck_id:%s' % deck_id
+                if not deck.get('game_count'):
+                    data['game_count'] = 400
                 if item['last_30_days'] and not item['trending_flag']:
                     data.pop('last_30_days')
                     data.pop('win_rate')
@@ -289,7 +321,11 @@ class MysqlTwistedPipeline(object):
                 print('last_30_days:', item['last_30_days'])
                 spider.ifanr.put_table_data(tableID=tableID, id=deck['id'], data=data)
             else:
-                print('insert best deck', data)
+                # print('insert best deck', data)
+                if spider.name == 'BestDeck':
+                    data['last_30_days'] = True
+                if not item.get('game_count'):
+                    data['game_count'] = 400
                 spider.ifanr.add_table_data(tableID=tableID, data=data)
         else:
             print('yf_log res is none')
@@ -302,32 +338,32 @@ class MysqlTwistedPipeline(object):
                 # 最近30天的卡组包含最新补丁卡组，所以最近30天卡组不更新last_30_days字段，防止最新补丁的卡组被覆盖为老卡组
                 if item['last_30_days']:
                     update_sql = "update %s set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%r, game_count=%r, real_game_count=%r, duration=%r, background_img=%r," \
-                                 " card_list=%r, deck_code=%r, clazzCount=%r, rarityCount=%r, statistic=%r, turns=%r, faction_win_rate=%r, create_time=%r where deck_id=%r" \
+                                 " card_list=%r, mulligan=%r, deck_code=%r, clazzCount=%r, rarityCount=%r, statistic=%r, turns=%r, faction_win_rate=%r, create_time=%r where deck_id=%r" \
                                  % (sql_name, item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'], item['background_img'],
-                                    item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
+                                    item['card_list'], item['mulligan'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
                 else:
                     update_sql = "update %s set faction=%r, deck_name=%r, dust_cost=%r, win_rate=%r, game_count=%r, real_game_count=%r, duration=%r, background_img=%r," \
-                                 " last_30_days=%s, card_list=%r, deck_code=%r, clazzCount=%r, rarityCount=%r, statistic=%r, turns=%r, faction_win_rate=%r, create_time=%r where deck_id=%r" \
+                                 " last_30_days=%s, card_list=%r, mulligan=%r, deck_code=%r, clazzCount=%r, rarityCount=%r, statistic=%r, turns=%r, faction_win_rate=%r, create_time=%r where deck_id=%r" \
                                  % (sql_name, item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'], item['background_img'],
-                                    item['last_30_days'], item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
+                                    item['last_30_days'], item['card_list'], item['mulligan'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date'], item['deck_id'])
                 cursor.execute(update_sql)
                 print('update deck', item['deck_id'], item['mode'])
             else:
                 if sql_name == 'decks_trending':
                     insert_sql = """
-                        insert into decks_trending(deck_id, faction, deck_name, dust_cost, win_rate, game_count, real_game_count, duration, background_img, card_list, deck_code, clazzCount, rarityCount, statistic, turns, faction_win_rate, create_time)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        insert into decks_trending(deck_id, faction, deck_name, dust_cost, win_rate, game_count, real_game_count, duration, background_img, card_list, mulligan, deck_code, clazzCount, rarityCount, statistic, turns, faction_win_rate, create_time)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     cursor.execute(insert_sql,(item['deck_id'], item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'],
-                                               item['background_img'], item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date']))
+                                               item['background_img'], item['card_list'], item['mulligan'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date']))
                 else:
                     insert_sql = """
                         insert into decks_decks(mode, deck_id, faction, deck_name, dust_cost, win_rate, game_count, real_game_count, duration, background_img,
-                         last_30_days, card_list, deck_code, clazzCount, rarityCount, statistic, turns, faction_win_rate, create_time)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         last_30_days, card_list, mulligan, deck_code, clazzCount, rarityCount, statistic, turns, faction_win_rate, create_time)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     cursor.execute(insert_sql,(item['mode'], item['deck_id'], item['faction'], item['deck_name'], item['dust_cost'], item['win_rate'], item['game_count'], item['real_game_count'], item['duration'],
-                                               item['background_img'], item['last_30_days'], item['card_list'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date']))
+                                               item['background_img'], item['last_30_days'], item['card_list'], item['mulligan'], deck_code, clazzCount, rarityCount, statistic, item['turns'], item['faction_win_rate'], item['date']))
                 print('insert deck', item['deck_id'], item['mode'])
         #
         # # 统计卡组名称，便于在后台进行卡组名称的翻译
@@ -450,6 +486,7 @@ class MysqlTwistedPipeline(object):
         item['extra_data'] = 0 #统计用数据的标识，为false的需要同步到知晓云，否则只更新到阿里云
         data = item._values
         data['img_tile_link'] = card_tile_url
+        print('查询是否已经录入该卡数据', res>0, data.get('name'))
 
         # select_sql = "SELECT deck_pop FROM cards_arenacards WHERE dbfId=%r AND classification=%r" % (item.get('dbfId'), item.get('classification'))
         # cursor.execute(select_sql)
@@ -465,9 +502,15 @@ class MysqlTwistedPipeline(object):
             if res>0:
                 res_card = cursor.fetchone()
                 del data['update_time']
+                print('start update', strftime("%Y-%m-%d %H:%M:%S", localtime()))
+                print('该单卡已经存在，更新', data.get('name'), data.get('classification'))
                 self.update(cursor, data, {'dbfId': data.get('dbfId'), 'classification': data.get('classification')}, 'cards_arenacards', today=True)
+                print('end update', strftime("%Y-%m-%d %H:%M:%S", localtime()))
             else:
+                print('start insert', strftime("%Y-%m-%d %H:%M:%S", localtime()))
+                print('该单卡不存在，插入', data.get('name'), data.get('classification'))
                 self.insert(cursor, data, 'cards_arenacards')
+                print('end insert', strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
         self.handle_arena_data(cursor, spider)
 

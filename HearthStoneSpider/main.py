@@ -15,6 +15,6 @@ execute(['scrapy', 'crawl', 'HSArchetype'])
 # execute(['scrapy', 'crawl', 'HSArenaCards', '-a', "params=extra_data"])
 # execute(['scrapy', 'crawl', 'HSRanking'])
 # execute(['scrapy', 'crawl', 'HSDecks', '-a', "params=interrupt"])
-# execute(['scrapy', 'crawl', 'HSDecks', '-a', "params=page", '-a', "page=14"])
+# execute(['scrapy', 'crawl', 'HSDecks', '-a', "params=page", '-a', "page=3"])
 
 # execute(['scrapy', 'crawl', 'BestDeck'])

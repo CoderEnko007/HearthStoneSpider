@@ -67,6 +67,7 @@ class HSDecksSpiderItem(scrapy.Item):
     deck_code = scrapy.Field() #卡组代码
 
     card_list = scrapy.Field() # 卡组套牌
+    mulligan = scrapy.Field() # 调度建议
     turns = scrapy.Field() # 回合数
     faction_win_rate = scrapy.Field() # 各职业对战胜率
     date = scrapy.Field() # 日期

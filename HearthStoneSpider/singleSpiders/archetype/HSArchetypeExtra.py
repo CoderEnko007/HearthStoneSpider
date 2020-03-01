@@ -9,7 +9,8 @@ from HearthStoneSpider.settings import SQL_FULL_DATETIME
 if __name__ == '__main__':
     BASE_DIR = os.path.dirname(os.path.realpath(__file__))
     files = {'One_Through_Five': 'One_Through_Five.html',
-             'Legend_Only': 'Legend_Only.html'}
+             'Legend_Only': 'Legend_Only.html',
+             'Six_Through_Ten': 'Six_Through_Ten.html'}
     db = DBManager()
     for range, file in files.items():
         file_name = os.path.join(BASE_DIR, file)

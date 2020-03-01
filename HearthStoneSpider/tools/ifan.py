@@ -14,6 +14,8 @@ tablesID = {
     'wild_decks': 55625,
     'arena_cards': 70488, #57106,
     'trending': 53120,
+    'new_cards': 88786,
+    'activation_code': 90990
 }
 
 class iFanr(object):

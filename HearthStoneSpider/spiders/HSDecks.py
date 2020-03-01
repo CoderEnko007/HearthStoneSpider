@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import scrapy
+import requests
 import datetime
 import json
 import re
@@ -24,13 +25,6 @@ from HearthStoneSpider.tools.ifan import iFanr
 
 class HSDecksSpider(scrapy.Spider):
     name = 'HSDecks'
-    # allowed_domains = ['hsreplay.net/decks/']
-    # start_urls = ['https://hsreplay.net/decks/#minGames=400',
-    #               'https://hsreplay.net/decks/trending/']
-    # start_urls = ['https://hsreplay.net/decks/trending/']
-    # start_urls = ['https://hsreplay.net/decks/',
-    #               'https://hsreplay.net/decks/trending/']
-    # start_urls = ['https://hsreplay.net/decks/#timeRange=LAST_30_DAYS']
     start_urls = ['https://hsreplay.net/decks/']
     def start_requests(self):
         for url in self.start_urls:
@@ -41,13 +35,23 @@ class HSDecksSpider(scrapy.Spider):
         if params == 'trending':
             self.start_urls = ['https://hsreplay.net/decks/trending/']
         elif params == 'interrupt':
-            self.start_urls = ['https://hsreplay.net/decks/#page=131']
+            self.start_urls = ['https://hsreplay.net/decks/#page=48']
         elif params == 'page' and page != None:
-            # url = 'https://hsreplay.net/decks/#playerClasses=PRIEST&timeRange=LAST_30_DAYS&archetypes=232&page={}'.format(page)
-            url = 'https://hsreplay.net/decks/#playerClasses=WARRIOR&archetypes=290&timeRange=LAST_30_DAYS&page=8'
+            url = 'https://hsreplay.net/decks/#includedSet=YEAR_OF_THE_DRAGON&page={}'.format(page)
+            # url = 'https://hsreplay.net/decks/#playerClasses=WARRIOR&archetypes=290&timeRange=LAST_30_DAYS&page=8'
+            # url = 'https://hsreplay.net/decks/#excludedCards=55441&includedCards=55006'
             self.start_urls = [url]
         else:
-            self.start_urls = ['https://hsreplay.net/decks/']
+            # self.start_urls = ['https://hsreplay.net/decks/']
+            self.start_urls = ['https://hsreplay.net/decks/#minGames=3000&includedSet=YEAR_OF_THE_DRAGON']
+            # self.start_urls = ['https://hsreplay.net/decks/#includedCards=56122',
+            #                    'https://hsreplay.net/decks/#includedCards=56101',
+            #                    'https://hsreplay.net/decks/#includedCards=56114',
+            #                    'https://hsreplay.net/decks/#includedCards=56135',
+            #                    'https://hsreplay.net/decks/#includedCards=56077',
+            #                    'https://hsreplay.net/decks/#includedCards=56068',
+            #                    'https://hsreplay.net/decks/#includedCards=56262',
+            #                    'https://hsreplay.net/decks/#includedCards=56076']
         chrome_opt = webdriver.ChromeOptions()
         chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         chrome_opt.add_argument('--disable-gpu')
@@ -57,7 +61,9 @@ class HSDecksSpider(scrapy.Spider):
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
         # dispatcher.connect(self.item_scraped, signals.item_scraped)
         self.ifanr = iFanr()
-        self.interrupt_page = 110 if params == 'interrupt' else 80
+        # 48到80页的数据跳过
+        # self.interrupt_page = 80 if params == 'interrupt' else 20
+        self.interrupt_page = 80 if params == 'interrupt' else 100
         self.current_page = self.interrupt_page+1 if params == 'interrupt' else 1 # 70页需要关闭chrome重新开启
         self.params = params
         self.total_page = 0
@@ -89,7 +95,7 @@ class HSDecksSpider(scrapy.Spider):
                 last_30_days = False
             deck_nodes = response.css('.deck-list>ul>li')[1:]
 
-        # deck_nodes = response.css('div.deck-list>ul>li')[-2:]
+        # deck_nodes = response.css('.deck-list>ul>li')[-1:]
         for item in deck_nodes:
             deck_id = item.css('a::attr(href)').extract_first('')
             deck_id = reMatchFormat('\/.*\/(.*)\/', deck_id.strip())
@@ -128,13 +134,14 @@ class HSDecksSpider(scrapy.Spider):
             if self.total_page > 0:
                 self.current_page += 1
                 # 爬取一半需要重启webdriver
-                # if self.current_page == self.interrupt_page:
-                #     print('已经爬取了%s页,暂时停止爬虫'%self.interrupt_page)
-                #     return
+                if self.current_page == self.interrupt_page:
+                    print('已经爬取了%s页,暂时停止爬虫'%self.interrupt_page)
+                    return
                 if self.current_page <= self.total_page:
                     if last_30_days:
                         next_url = 'https://hsreplay.net/decks/#timeRange=LAST_30_DAYS&page={}'.format(self.current_page)
                     else:
+                        # next_url = 'https://hsreplay.net/decks/#playerClasses=WARLOCK&archetypes=358&page={}'.format(self.current_page)
                         next_url = 'https://hsreplay.net/decks/#page={}'.format(self.current_page)
                     print('yf_log next_url', next_url)
                     yield Request(url=next_url, callback=self.parse, dont_filter=True)
@@ -168,16 +175,16 @@ class HSDecksSpider(scrapy.Spider):
         else:
             hs_item['real_game_count'] = hs_item['game_count']
 
-        card_list_items = response.css('#overview div.card-list-wrapper ul.card-list div.tooltip-wrapper div.card-tile')
+        card_list_items = response.css('#overview .card-list-wrapper .card-list .tooltip-wrapper .card-tile')
         card_list = []
         for item in card_list_items:
             card_cost = int(item.css('span.card-cost::text').extract_first(''))
             card_asset = item.css('div.card-frame img.card-asset::attr(src)').extract_first('')
             card_hsid = card_asset.split('/')[-1].split('.')[0]
-            card_count = item.css('span.card-count::text').extract_first('')
+            card_count = item.css('.card-count::text').extract_first('')
             card_count = int(card_count) if card_count.isdigit() else 1
             # card_count = re.findall('\d+', card_count)
-            card_name = item.css('span.card-name::text').extract_first('')
+            card_name = item.css('.card-name::text').extract_first('')
             card_list.append({'name': card_name, 'cost': card_cost, 'count': card_count, 'card_hsid': card_hsid})
         hs_item['card_list'] = card_list
 
@@ -193,13 +200,6 @@ class HSDecksSpider(scrapy.Spider):
             print('win_rate_cell', win_rate_cell)
             hs_item['real_win_rate'] = hs_item['win_rate']
             print('hs_item:', hs_item)
-        # try:
-        #     hs_item['real_win_rate'] = float(win_rate_cell)
-        # except Exception as e:
-        #     hs_item['real_win_rate'] = ''
-        #     print(e)
-        #     print('win_rate_cell:', win_rate_cell)
-        #     print('hs_item:', hs_item)
         print('test win_rate', hs_item['deck_id'], hs_item['win_rate'], hs_item['real_win_rate'])
 
         win_rate_nodes = response.css('table.table-striped tbody tr')
@@ -215,4 +215,17 @@ class HSDecksSpider(scrapy.Spider):
         hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
 
         self.crawler.stats.inc_value('decks_scraped')
+        url = 'https://hsreplay.net/analytics/query/single_deck_mulligan_guide/?GameType=RANKED_STANDARD&RankRange=ALL&Region=ALL&PlayerInitiative=ALL&deck_id='+hs_item['deck_id']
+        yield Request(url=url, callback=self.parse_mulligan, meta={'data':hs_item}, dont_filter=True)
+        # yield hs_item
+
+    def parse_mulligan(self, response):
+        meta = response.meta
+        hs_item = meta.get('data')
+        res_data = response.css('pre::text').extract_first('')
+        if res_data and res_data != '':
+            json_data = json.loads(res_data)
+            hs_item['mulligan'] = json_data['series']['data']['ALL']
+        else:
+            hs_item['mulligan'] = ''
         yield hs_item

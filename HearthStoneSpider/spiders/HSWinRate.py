@@ -18,7 +18,8 @@ from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
 class HSWinRateSpider(scrapy.Spider):
     name = 'HSWinRate'
     allowed_domains = ['hsreplay.net/meta/#tab=archetypes']
-    start_urls = ['https://hsreplay.net/meta/#tab=archetypes&timeFrame=LAST_7_DAYS']
+    start_urls = ['https://hsreplay.net/meta/#tab=archetypes']
+    # start_urls = ['https://hsreplay.net/meta/#tab=archetypes&timeFrame=LAST_7_DAYS']
 
     def __init__(self):
         super(HSWinRateSpider, self).__init__()
@@ -45,6 +46,8 @@ class HSWinRateSpider(scrapy.Spider):
         faction_boxes = response.css('div.class-box-container div.box.class-box')
         for box in faction_boxes:
             faction = box.css('div.box-title span.player-class::text').extract_first('')
+            # if faction != 'Warlock':
+            #     continue
             archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
             archetype_list_other_item = box.css('div.grid-container')[2].css('span.player-class div.tooltip-wrapper::text').extract_first('')
             archetype_list.append(archetype_list_other_item)
@@ -60,6 +63,8 @@ class HSWinRateSpider(scrapy.Spider):
                     list_temp = []
                     continue
             for i, archetype in enumerate(archetype_list):
+                # if archetype != 'Dragon Paladin' and archetype != 'Dragon Druid':
+                #     continue
                 hs_item = HSWinRateSpiderItem()
                 hs_item['rank_range'] = 'All'
                 hs_item['faction'] = faction
@@ -168,22 +173,22 @@ class HSWinRateSpider(scrapy.Spider):
         hs_item['worst_matchup'] = worst_matchup
 
         card_list_wrapper = response.css('div.archetype-signature div.card-list-wrapper')
-        core_card_list_items = card_list_wrapper[0].css('div.card-tile') if len(card_list_wrapper) > 0 else []
+        core_card_list_items = card_list_wrapper[0].css('.card-tile') if len(card_list_wrapper) > 0 else []
         core_cards = []
         for item in core_card_list_items:
-            card_name = item.css('span.card-name::text').extract_first('')
-            card_cost = item.css('span.card-cost::text').extract_first('')
+            card_name = item.css('.card-name::text').extract_first('')
+            card_cost = item.css('.card-cost::text').extract_first('')
             card_assert = item.css('img.card-asset::attr(src)').extract_first('')
             card_hsid = card_assert.split('/')[-1].split('.')[0]
             # core_cards.append([card_name, card_cost, card_assert])
             core_cards.append({'name': card_name, 'cost': card_cost, 'card_hsid': card_hsid})
         hs_item['core_cards'] = core_cards
 
-        pop_card_list_items = card_list_wrapper[1].css('div.card-tile') if len(card_list_wrapper) > 1 else []
+        pop_card_list_items = card_list_wrapper[1].css('.card-tile') if len(card_list_wrapper) > 1 else []
         pop_cards = []
         for item in pop_card_list_items:
-            card_name = item.css('span.card-name::text').extract_first('')
-            card_cost = item.css('span.card-cost::text').extract_first('')
+            card_name = item.css('.card-name::text').extract_first('')
+            card_cost = item.css('.card-cost::text').extract_first('')
             card_assert = item.css('img.card-asset::attr(src)').extract_first('')
             card_hsid = card_assert.split('/')[-1].split('.')[0]
             # pop_cards.append([card_name, card_cost, card_assert])
