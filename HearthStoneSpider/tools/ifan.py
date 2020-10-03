@@ -14,6 +14,7 @@ tablesID = {
     'wild_decks': 55625,
     'arena_cards': 70488, #57106,
     'trending': 53120,
+    'winrate': 96629,
     'new_cards': 88786,
     'activation_code': 90990
 }
@@ -96,6 +97,7 @@ class iFanr(object):
         response = requests.put(url, headers=headers, data=data)
         re_dict = json.loads(response.text)
         # print('update', re_dict)
+        return response
 
     def import_table_data(self, tableID, filename):
         url = r'https://cloud.minapp.com/oserve/v1/table/%s/import/' % tableID

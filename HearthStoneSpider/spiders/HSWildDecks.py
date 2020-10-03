@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 import scrapy
 import datetime
+import time
 import json
 import re
+import platform
 from urllib import parse
 from selenium import webdriver
 from scrapy import signals
 from pydispatch import dispatcher
 from scrapy.http import Request
-import requests
+from scrapy.http import HtmlResponse
 
 from HearthStoneSpider.items import HSDecksSpiderItem
 from HearthStoneSpider.tools.utils import reMatchFormat
-from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
+from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME, CHANGE_LANGUAGE
 from HearthStoneSpider.tools.ifan import iFanr
 
 
@@ -20,25 +22,46 @@ class HSDecksSpider(scrapy.Spider):
     name = 'HSWildDecks'
     allowed_domains = ['hsreplay.net/decks/']
     # start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD&timeRange=LAST_30_DAYS']
-    start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD&wildCard=yes']
+    start_urls = ['https://hsreplay.net/decks/#rankRange=DIAMOND_THROUGH_LEGEND&wildCard=yes&gameType=RANKED_WILD&timeRange=LAST_7_DAYS']
+    # start_urls = ['https://hsreplay.net/decks/#wildCard=yes&gameType=RANKED_WILD&includedCards=56622']
 
     def __init__(self):
         super(HSDecksSpider, self).__init__()
         chrome_opt = webdriver.ChromeOptions()
-        chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         chrome_opt.add_argument('--disable-gpu')
-        chrome_opt.add_argument('--headless')  # 无页面模式
+        chrome_opt.add_argument('--no-sandbox')
+        if platform.platform().find('Linux') != -1:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
+            chrome_opt.add_argument('--headless')  # 无页面模式
+        else:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false')  # 无图模式
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         self.ifanr = iFanr()
         self.current_page = 1
         self.total_page = 0
+        self.langToggleClicked = False
+        self.addCookieFlag = True
 
     def spider_closed(self):
         print('HSDecks end')
         self.browser.quit()
 
     def parse(self, response):
+        if CHANGE_LANGUAGE and not self.langToggleClicked and platform.platform().find('Windows')!=-1:
+            langToggle = self.browser.find_elements_by_css_selector('.dropdown-toggle')
+            if len(langToggle)>0:
+                langToggle[0].click()
+            langItemEn = self.browser.find_elements_by_css_selector('.dropdown-menu li')
+            if len(langItemEn)>0:
+                langItemEn[0].click()
+            time.sleep(2)
+            self.langToggleClicked = True
+            response = HtmlResponse(
+                url=self.browser.current_url,
+                body=self.browser.page_source,
+                encoding='utf-8',
+            )
         trending_flag = False
         mode = 'Wild' # 默认标准模式卡组
         # last_30_days = True
@@ -53,6 +76,8 @@ class HSDecksSpider(scrapy.Spider):
             deck_id = item.css('a::attr(href)').extract_first('')
             deck_id = reMatchFormat('\/.*\/(.*)\/', deck_id.strip())
             faction = item.css('.deck-tile::attr(data-card-class)').extract_first('').capitalize()
+            if faction == 'Demonhunter':
+                faction = 'DemonHunter'
             deck_name = item.css('.deck-tile .deck-name::text').extract_first('')
             dust_cost = item.css('.deck-tile .dust-cost::text').extract_first('')
             win_rate = item.css('.deck-tile .win-rate::text').extract_first('')
@@ -60,11 +85,12 @@ class HSDecksSpider(scrapy.Spider):
             win_rate = '.'.join(win_rate)
             game_count = item.css('.deck-tile .game-count::text').extract_first('')
             game_count = game_count.replace(',', '')
-            duration = item.css('.deck-tile .duration::text').extract_first('')
+            # duration = item.css('.deck-tile .duration::text').extract_first('')
+            duration = item.css('.deck-tile .duration span::text').extract_first('')
             duration = reMatchFormat('.*?(\d*\.?\d*).*', duration.strip())
             background_img = item.css('li::attr(style)').extract_first('')
             background_img = reMatchFormat('.*url\(\"(https.*)\"\)', background_img)
-            url = parse.urljoin(response.url, '/decks/{}/#tab=overview'.format(deck_id))
+            url = parse.urljoin(response.url, '/decks/{}/#rankRange=DIAMOND_THROUGH_LEGEND&tab=overview'.format(deck_id))
             yield Request(url=url, meta={
                 'deck_id': deck_id,
                 'faction': faction,
@@ -87,9 +113,9 @@ class HSDecksSpider(scrapy.Spider):
             self.current_page += 1
             if self.current_page <= self.total_page:
                 if last_30_days:
-                    next_url = 'https://hsreplay.net/decks/#gameType=RANKED_WILD&timeRange=LAST_30_DAYS&page={}'.format(self.current_page)
+                    next_url = 'https://hsreplay.net/decks/#gameType=RANKED_WILD&wildCard=yes&rankRange=DIAMOND_THROUGH_LEGEND&timeRange=LAST_30_DAYS&page={}'.format(self.current_page)
                 else:
-                    next_url = 'https://hsreplay.net/decks/#gameType=RANKED_WILD&page={}'.format(self.current_page)
+                    next_url = 'https://hsreplay.net/decks/#gameType=RANKED_WILD&wildCard=yes&rankRange=DIAMOND_THROUGH_LEGEND&page={}'.format(self.current_page)
                 print('yf_log next_url', next_url)
                 yield Request(url=next_url, callback=self.parse, dont_filter=True)
 
@@ -145,6 +171,8 @@ class HSDecksSpider(scrapy.Spider):
         for item in win_rate_nodes[4:]:
             faction_str = item.css('td span.player-class::attr(class)').extract_first('')
             faction = reMatchFormat('.* (\w*)$', faction_str.strip()).capitalize()
+            if faction == 'Demonhunter':
+                faction = 'DemonHunter'
             win_rate = item.css('td.winrate-cell::text').extract_first('')
             win_rate = re.findall('\d+', win_rate)
             win_rate = '.'.join(win_rate)
@@ -165,7 +193,7 @@ class HSDecksSpider(scrapy.Spider):
         # re_dict = json.loads(res.text)
         # hs_item['mulligan'] = re_dict['series']['data']['ALL']
         # yield hs_item
-        url = 'https://hsreplay.net/analytics/query/single_deck_mulligan_guide/?GameType=RANKED_WILD&RankRange=ALL&Region=ALL&PlayerInitiative=ALL&deck_id='+hs_item['deck_id']
+        url = 'https://hsreplay.net/analytics/query/single_deck_mulligan_guide_v2/?GameType=RANKED_WILD&LeagueRankRange=DIAMOND_THROUGH_LEGEND&Region=ALL&PlayerInitiative=ALL&deck_id='+hs_item['deck_id']
         yield Request(url=url, callback=self.parse_mulligan, meta={'data': hs_item}, dont_filter=True)
 
     def parse_mulligan(self, response):

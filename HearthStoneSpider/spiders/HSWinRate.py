@@ -5,14 +5,17 @@ import json
 import datetime
 import requests
 import copy
+import time
+import platform
 from urllib import parse
 from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy import signals
 from scrapy.http import Request
+from scrapy.http import HtmlResponse
 
 from HearthStoneSpider.items import HSWinRateSpiderItem
-from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
+from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME, CHANGE_LANGUAGE
 
 
 class HSWinRateSpider(scrapy.Spider):
@@ -21,17 +24,54 @@ class HSWinRateSpider(scrapy.Spider):
     start_urls = ['https://hsreplay.net/meta/#tab=archetypes']
     # start_urls = ['https://hsreplay.net/meta/#tab=archetypes&timeFrame=LAST_7_DAYS']
 
-    def __init__(self):
+    def __init__(self, rankRangeParams=None, timeFrame=None, faction=None, archetype=None):
         super(HSWinRateSpider, self).__init__()
+        if rankRangeParams == 'ALL':
+            self.start_urls = [
+                'https://hsreplay.net/meta/#tab=archetypes{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=DIAMOND_THROUGH_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=DIAMOND_FOUR_THROUGH_DIAMOND_ONE{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=TOP_1000_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'DIAMOND_THROUGH_LEGEND':
+            self.start_urls = ['https://hsreplay.net/meta/#tab=archetypes&rankRange=DIAMOND_THROUGH_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'LEGEND':
+            self.start_urls = ['https://hsreplay.net/meta/#tab=archetypes&rankRange=LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'DIAMOND_FOUR_THROUGH_DIAMOND_ONE':
+            self.start_urls = ['https://hsreplay.net/meta/#tab=archetypes&rankRange=DIAMOND_FOUR_THROUGH_DIAMOND_ONE{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'TOP_1000_LEGEND':
+            self.start_urls = ['https://hsreplay.net/meta/#tab=archetypes&rankRange=TOP_1000_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'VIP':
+            self.start_urls = [
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=DIAMOND_THROUGH_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=DIAMOND_FOUR_THROUGH_DIAMOND_ONE{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#tab=archetypes&rankRange=TOP_1000_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        else:
+            self.start_urls = ['https://hsreplay.net/meta/#tab=archetypes{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        self.rankRangeParams = rankRangeParams if rankRangeParams else 'BRONZE_THROUGH_GOLD'
+        self.faction = eval(faction)if faction else None
+        self.archetype = archetype
         chrome_opt = webdriver.ChromeOptions()
-        chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         chrome_opt.add_argument('--disable-gpu')
-        chrome_opt.add_argument('--headless')  # 无页面模式
+        chrome_opt.add_argument('--no-sandbox')
+        if platform.platform().find('Linux') != -1:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
+            chrome_opt.add_argument('--headless')  # 无页面模式
+        else:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false')
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
+        self.addCookieFlag = True
+        # if platform.platform().find('Windows') != -1:
+        #     self.addCookieFlag = True
+        # else:
+        #     self.addCookieFlag = False if self.rankRangeParams == 'BRONZE_THROUGH_GOLD' else True
+        # self.langToggleClicked = False
 
     def spider_closed(self):
+        time.sleep(5)
         print('HSWinRate end')
         self.browser.quit()
 
@@ -43,14 +83,40 @@ class HSWinRateSpider(scrapy.Spider):
 
 
     def parse(self, response):
+        if self.rankRangeParams == 'VIP' or self.rankRangeParams == 'ALL':
+            reg_range = re.findall('.*rankRange=([0-9, a-z, A-Z, _]*)', response.url)
+            rankRange = reg_range[0] if len(reg_range) else 'BRONZE_THROUGH_GOLD'
+        elif self.rankRangeParams:
+            rankRange = self.rankRangeParams
+        else:
+            rankRange = 'BRONZE_THROUGH_GOLD'
+        if CHANGE_LANGUAGE and not self.langToggleClicked and platform.platform().find('Windows') != -1:
+            langToggle = self.browser.find_elements_by_css_selector('.dropdown-toggle')[0]
+            langToggle.click()
+            time.sleep(3)
+            langItemEn = self.browser.find_elements_by_css_selector('.dropdown-menu li')[0]
+            langItemEn.click()
+            time.sleep(3)
+            classBtn = self.browser.find_elements_by_css_selector('#tab-archetypes')[0]
+            classBtn.click()
+            time.sleep(3)
+            self.langToggleClicked = True
+            response = HtmlResponse(
+                url=self.browser.current_url,
+                body=self.browser.page_source,
+                encoding='utf-8',
+            )
         faction_boxes = response.css('div.class-box-container div.box.class-box')
         for box in faction_boxes:
             faction = box.css('div.box-title span.player-class::text').extract_first('')
-            # if faction != 'Warlock':
-            #     continue
+            faction = faction.replace(' ', '')
+            self.faction = [faction.lower() for faction in self.faction] if self.faction else None
+            if self.faction and faction.lower() not in self.faction:
+                continue
             archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
             archetype_list_other_item = box.css('div.grid-container')[2].css('span.player-class div.tooltip-wrapper::text').extract_first('')
-            archetype_list.append(archetype_list_other_item)
+            if archetype_list_other_item:
+                archetype_list.append(archetype_list_other_item)
             detail_url_list = box.css('div.grid-container')[2].css('a.player-class::attr(href)').extract()
             detail_url_list.append('')
             data_cells = box.css('div.grid-container')[3].css('.table-cell::text').extract()
@@ -63,11 +129,13 @@ class HSWinRateSpider(scrapy.Spider):
                     list_temp = []
                     continue
             for i, archetype in enumerate(archetype_list):
-                # if archetype != 'Dragon Paladin' and archetype != 'Dragon Druid':
-                #     continue
+                if self.archetype and archetype.lower() != self.archetype.lower():
+                    continue
                 hs_item = HSWinRateSpiderItem()
-                hs_item['rank_range'] = 'All'
-                hs_item['faction'] = faction
+                hs_item['rank_range'] = '_'.join([x.upper() for x in rankRange.split('_')])
+                hs_item['faction'] = faction.capitalize()
+                if hs_item['faction'] == 'Demonhunter':
+                    hs_item['faction'] = 'DemonHunter'
                 hs_item['archetype'] = archetype
                 win_rate = re.findall('\d+', data_list[i][0])
                 hs_item['winrate'] = float('.'.join(win_rate))
@@ -76,9 +144,10 @@ class HSWinRateSpider(scrapy.Spider):
                 hs_item['games'] = int(data_list[i][2].replace(',', ''))
                 hs_item['date'] = datetime.datetime.now().strftime(SQL_FULL_DATETIME)
                 detail_url = parse.urljoin('https://hsreplay.net', detail_url_list[i])
-                print('detail_url:', detail_url)
-                if detail_url_list[i] != '':
-                    yield Request(url=detail_url, meta=hs_item, callback=self.parse_detail, dont_filter=True)
+                if detail_url_list[i] != '' and rankRange=='BRONZE_THROUGH_GOLD':
+                    print('detail_url:', detail_url)
+                    rank_range_url = "{}#rankRange=DIAMOND_THROUGH_LEGEND".format(detail_url)
+                    yield Request(url=rank_range_url, meta=hs_item, callback=self.parse_detail, dont_filter=True)
                 else:
                     yield hs_item
 
@@ -116,7 +185,7 @@ class HSWinRateSpider(scrapy.Spider):
                 pop_deck_games = deck_box[0].css('div.stats-table tr')[1].css('td::text').extract_first('')
                 pop_deck = [pop_deck_code, pop_deck_win_rate, pop_deck_games]
             else:
-                print('yf_log pop_deck is none')
+                print('{} pop_deck is none'.format(hs_item['archetype']))
                 pop_deck = []
         else:
             pop_deck = []
@@ -132,7 +201,7 @@ class HSWinRateSpider(scrapy.Spider):
                 best_deck_games = deck_box[1].css('div.stats-table tr')[1].css('td::text').extract_first('')
                 best_deck = [best_deck_code, best_deck_win_rate, best_deck_games]
             else:
-                print('yf_log best_deck is none')
+                print('{} best_deck is none'.format(hs_item['archetype']))
                 best_deck = []
         else:
             best_deck = []
@@ -142,27 +211,35 @@ class HSWinRateSpider(scrapy.Spider):
         matchup_box = response.css('a.matchup-box')
         if len(matchup_box) > 0:
             best_matchup_player_class = matchup_box[0].css('span.player-class::text').extract_first('')
+            best_matchup_faction = matchup_box[0].css('span.player-class::attr(class)').extract_first('')
+            best_matchup_faction = best_matchup_faction.split(' ')[-1].capitalize()
+            if best_matchup_faction == 'Demonhunter':
+                best_matchup_faction = 'DemonHunter'
             matchup_box_tr = matchup_box[0].css('div.stats-table tr')
             if len(matchup_box_tr) > 1:
                 best_matchup_win_rate = matchup_box_tr[0].css('td::text').extract_first('')
                 best_matchup_games = matchup_box_tr[1].css('td::text').extract_first('')
-                best_matchup = [best_matchup_player_class, best_matchup_win_rate, best_matchup_games]
+                best_matchup = [best_matchup_player_class, best_matchup_win_rate, best_matchup_games, best_matchup_faction]
             else:
-                print('yf_log: best_matchup matchup_box_tr is null ')
+                print('{} best_matchup matchup_box_tr is null'.format(hs_item['archetype']))
                 best_matchup = []
         else:
-            print('yf_log: best_matchup matchup_box is null')
+            print('{} best_matchup matchup_box is null'.format(hs_item['archetype']))
             best_matchup = []
         best_matchup = json.dumps(best_matchup, ensure_ascii=False)
         hs_item['best_matchup'] = best_matchup
 
         if len(matchup_box) > 1:
             worst_matchup_player_class = matchup_box[1].css('span.player-class::text').extract_first('')
+            worst_matchup_faction_t = matchup_box[1].css('span.player-class::attr(class)').extract_first('')
+            worst_matchup_faction = worst_matchup_faction_t.split(' ')[-1].capitalize()
+            if worst_matchup_faction == 'Demonhunter':
+                worst_matchup_faction = 'DemonHunter'
             matchup_box_tr = matchup_box[1].css('div.stats-table tr')
             if len(matchup_box_tr) > 1:
                 worst_matchup_win_rate = matchup_box[1].css('div.stats-table tr')[0].css('td::text').extract_first('')
                 worst_matchup_games = matchup_box[1].css('div.stats-table tr')[1].css('td::text').extract_first('')
-                worst_matchup = [worst_matchup_player_class, worst_matchup_win_rate, worst_matchup_games]
+                worst_matchup = [worst_matchup_player_class, worst_matchup_win_rate, worst_matchup_games, worst_matchup_faction]
             else:
                 print('yf_log: worst_matchup matchup_box_tr is null ')
                 worst_matchup = []
@@ -195,16 +272,17 @@ class HSWinRateSpider(scrapy.Spider):
             pop_cards.append({'name': card_name, 'cost': card_cost, 'card_hsid': card_hsid})
         hs_item['pop_cards'] = pop_cards
 
-        matchup_url = response.css('a#tab-matchups::attr(href)').extract_first('')
-        url = parse.urljoin(response.url, matchup_url)
+        # matchup_url = response.css('a#tab-matchups::attr(href)').extract_first('')
+        url = "{}&tab=matchups".format(response.url)
+        # url = parse.urljoin(response.url, matchup_url)
         yield Request(url=url, meta=hs_item, callback=self.matchup_detail, dont_filter=True)
 
     def matchup_detail(self, response):
         hs_item = copy.copy(response.meta)
         faction_boxes = response.css('div.class-box-container div.box.class-box')
-        matchup = {'Druid':[], 'Hunter':[], 'Mage':[], 'Paladin':[], 'Priest':[], 'Rogue':[], 'Shaman':[], 'Warlock':[], 'Warrior':[]}
+        matchup = {'Druid':[], 'Hunter':[], 'Mage':[], 'Paladin':[], 'Priest':[], 'Rogue':[], 'Shaman':[], 'Warlock':[], 'Warrior':[], 'DemonHunter':[]}
         for box in faction_boxes:
-            faction = box.css('div.box-title span.player-class::text').extract_first('')
+            faction = box.css('div.box-title span.player-class::text').extract_first('').replace(' ', '')
             archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
             data_cells = box.css('div.grid-container')[3].css('a.table-cell::text').extract()
             data_list = []

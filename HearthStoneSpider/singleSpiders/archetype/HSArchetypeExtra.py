@@ -6,6 +6,9 @@ from HearthStoneSpider.tools.dbtools import DBManager
 
 from HearthStoneSpider.settings import SQL_FULL_DATETIME
 
+# class
+
+
 if __name__ == '__main__':
     BASE_DIR = os.path.dirname(os.path.realpath(__file__))
     files = {'One_Through_Five': 'One_Through_Five.html',

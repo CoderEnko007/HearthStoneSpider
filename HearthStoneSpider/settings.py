@@ -78,6 +78,7 @@ project_dir = os.path.abspath(os.path.dirname(__file__))
 IMAGES_STORE = os.path.join(project_dir, "images") # 配置图片存储的位置
 ARENA_FILES = os.path.join(project_dir, "arenaFiles")
 TOOLS_DIR = os.path.join(project_dir, "tools")
+COOKIES_DIR = os.path.join(project_dir, "cookies")
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://doc.scrapy.org/en/latest/topics/autothrottle.html
 AUTOTHROTTLE_ENABLED = True
@@ -98,12 +99,13 @@ AUTOTHROTTLE_ENABLED = True
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
-# MYSQL_HOST = '127.0.0.1'
-MYSQL_HOST = '47.98.187.217'
+
+MYSQL_HOST = '127.0.0.1'
+# MYSQL_HOST = '47.98.187.217'
 MYSQL_DBNAME = 'hearthstonestation'
 MYSQL_USER = 'root'
-MYSQL_PWD = '666666'
-# MYSQL_PWD = ''
+# MYSQL_PWD = '666666'
+MYSQL_PWD = ''
 
 SQL_DATETIME_FORMAT = "%Y-%m-%d"
 SQL_FULL_DATETIME = "%Y-%m-%d %H:%M:%S"
@@ -111,3 +113,5 @@ SQL_FULL_DATETIME = "%Y-%m-%d %H:%M:%S"
 COMMANDS_MODULE = 'HearthStoneSpider.commands'
 
 RANDOM_UA_TYPE = 'random'
+
+CHANGE_LANGUAGE = False

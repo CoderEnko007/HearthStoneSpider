@@ -4,14 +4,17 @@ import re
 import json
 import requests
 import copy
+import time
+import platform
 from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy import signals
 from urllib import parse
 from scrapy.http import Request
+from scrapy.http import HtmlResponse
 
 from HearthStoneSpider.items import HSArchetypeSpiderItem
-from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
+from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME, CHANGE_LANGUAGE
 
 
 class HSArchetypeSpider(scrapy.Spider):
@@ -20,18 +23,53 @@ class HSArchetypeSpider(scrapy.Spider):
     start_urls = ['http://hsreplay.net/meta/']
     # start_urls = ['https://hsreplay.net/meta/#timeFrame=LAST_7_DAYS']
 
-    def __init__(self):
+    def __init__(self, rankRangeParams=None, timeFrame=None):
         super(HSArchetypeSpider, self).__init__()
+        if rankRangeParams == 'ALL':
+            self.start_urls = [
+                'https://hsreplay.net/meta/{}'.format('#timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#rankRange=LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#rankRange=DIAMOND_FOUR_THROUGH_DIAMOND_ONE{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#rankRange=DIAMOND_THROUGH_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#rankRange=TOP_1000_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'DIAMOND_THROUGH_LEGEND':
+            self.start_urls = ['https://hsreplay.net/meta/#rankRange=DIAMOND_THROUGH_LEGEND{}'.format('&timeFrame='+timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'LEGEND':
+            self.start_urls = ['https://hsreplay.net/meta/#rankRange=LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'DIAMOND_FOUR_THROUGH_DIAMOND_ONE':
+            self.start_urls = ['https://hsreplay.net/meta/#rankRange=DIAMOND_FOUR_THROUGH_DIAMOND_ONE{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'TOP_1000_LEGEND':
+            self.start_urls = ['https://hsreplay.net/meta/#rankRange=TOP_1000_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        elif rankRangeParams == 'VIP':
+            self.start_urls = [
+                'https://hsreplay.net/meta/#rankRange=LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#rankRange=DIAMOND_FOUR_THROUGH_DIAMOND_ONE{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#rankRange=DIAMOND_THROUGH_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else ''),
+                'https://hsreplay.net/meta/#rankRange=TOP_1000_LEGEND{}'.format('&timeFrame=' + timeFrame if timeFrame else '')]
+        else:
+            self.start_urls = ['https://hsreplay.net/meta/{}'.format('#timeFrame=' + timeFrame if timeFrame else '')]
+        self.rankRangeParams = rankRangeParams if rankRangeParams else 'BRONZE_THROUGH_GOLD'
         self.saved_count = 0
         chrome_opt = webdriver.ChromeOptions()
-        chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         chrome_opt.add_argument('--disable-gpu')
-        chrome_opt.add_argument('--headless')  # 无页面模式
+        chrome_opt.add_argument('--no-sandbox')
+        if platform.platform().find('Linux') != -1:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
+            chrome_opt.add_argument('--headless')  # 无页面模式
+        else:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false') # 无图模式
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
+        self.addCookieFlag = True
+        # if platform.platform().find('Windows') != -1:
+        #     self.addCookieFlag = True
+        # else:
+        #     self.addCookieFlag = False if self.rankRangeParams == 'BRONZE_THROUGH_GOLD' else True
+        self.langToggleClicked = False
 
     def spider_closed(self):
+        time.sleep(5)
         print('HSArchetype end')
         self.browser.quit()
 
@@ -40,29 +78,58 @@ class HSArchetypeSpider(scrapy.Spider):
         requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/RGFLY7CmCp') # HSArchetypeRangeDataWebHook
 
     def parse(self, response):
+        if self.rankRangeParams == 'VIP' or self.rankRangeParams == 'ALL':
+            reg_range = re.findall('.*rankRange=([0-9, a-z, A-Z, _]*)', response.url)
+            rankRange = reg_range[0] if len(reg_range) else 'BRONZE_THROUGH_GOLD'
+        elif self.rankRangeParams:
+            rankRange = self.rankRangeParams
+        else:
+            rankRange = 'BRONZE_THROUGH_GOLD'
+        if CHANGE_LANGUAGE and not self.langToggleClicked and platform.platform().find('Windows') != -1:
+            langToggle = self.browser.find_elements_by_css_selector('.dropdown-toggle')[0]
+            langToggle.click()
+            time.sleep(1)
+            langItemEn = self.browser.find_elements_by_css_selector('.dropdown-menu li')[0]
+            langItemEn.click()
+            time.sleep(1)
+            self.langToggleClicked = True
+            response = HtmlResponse(
+                url=self.browser.current_url,
+                body=self.browser.page_source,
+                encoding='utf-8',
+            )
+        archetype_items = response.css('.archetype-list-item')
+        self.crawler.stats.set_value('archetypes_counts', len(archetype_items))
         archetype_tier = response.css('div.archetype-tier-list div.tier')
         for item in archetype_tier:
             tier = item.css('div.tier-header::text').extract_first('')
+            # if tier != 'Tier 1':
+            #     continue
             archetype_list_items = item.css('li.archetype-list-item')
             for arche in archetype_list_items:
                 archetype_name = arche.css('div.archetype-name::text').extract_first('')
-                faction = archetype_name.split(' ')[-1]
-                if faction == 'Handlock':
-                    faction = 'Warlock'
+                faction = archetype_name.split(' ')
+                if len(faction)>2 and faction[-2].lower()=='demon':
+                    faction = 'DemonHunter'
+                else:
+                    faction = faction[-1]
+                    if faction == 'Handlock':
+                        faction = 'Warlock'
                 win_rate = arche.css('div.archetype-data::text').extract_first('')
                 detail_url = arche.css('a::attr(href)')[0].extract()
                 detail_url = parse.urljoin(response.url, detail_url)
+                if rankRange != 'BRONZE_THROUGH_GOLD':
+                    # detail_url = parse.urljoin('#rankRange={}'.format(rankRange), detail_url)
+                    detail_url = "{}/#rankRange={}".format(detail_url, rankRange)
                 yield Request(url=detail_url, meta={
                     'tier': tier,
                     'faction': faction,
                     'archetype_name': archetype_name,
-                    'win_rate': win_rate
+                    'win_rate': win_rate,
+                    'rank_range': rankRange
                 }, callback=self.parse_detail, dont_filter=True)
 
     def parse_detail(self, response):
-        # win_rate = response.css('a.winrate-box .box-content h1::text').extract_first('')
-        # win_rate = re.findall('\d+', win_rate)
-        # win_rate = '.'.join(win_rate)
         game_count = response.css('a.winrate-box .box-content h3::text').extract_first('')
         game_count = re.findall('\d+', game_count)
         game_count = ''.join(game_count)
@@ -146,6 +213,7 @@ class HSArchetypeSpider(scrapy.Spider):
         hs_item['tier'] = meta.get('tier')
         hs_item['faction'] = meta.get('faction')
         hs_item['archetype_name'] = meta.get('archetype_name')
+        rankRange = meta.get('rank_range')
         try:
             hs_item['win_rate'] = float(meta.get('win_rate').replace("%", ""))
         except Exception as e:
@@ -168,8 +236,8 @@ class HSArchetypeSpider(scrapy.Spider):
         hs_item['core_cards'] = core_cards
         hs_item['pop_cards'] = pop_cards
         hs_item['matchup'] = "[]"
-        hs_item['rank_range'] = 'All'
-        self.crawler.stats.inc_value('archetypes_scraped')
+        hs_item['rank_range'] = '_'.join([x.upper() for x in rankRange.split('_')])
+        # self.crawler.stats.inc_value('archetypes_scraped')
         yield hs_item
 
     #     matchup_url = response.css('a#tab-matchups::attr(href)').extract_first('')

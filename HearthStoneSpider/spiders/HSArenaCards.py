@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import scrapy
 import json
+import platform
 from datetime import datetime
 
 from scrapy import signals
+from selenium import webdriver
 from pydispatch import dispatcher
 from scrapy.http import Request
 from HearthStoneSpider.settings import SQL_FULL_DATETIME
@@ -16,10 +18,19 @@ from HearthStoneSpider.tools.utils import DecimalEncoder
 class HSArenaCardsSpider(scrapy.Spider):
     name = 'HSArenaCards'
     allowed_domains = ['hsreplay.net']
-    start_urls = ['https://hsreplay.net/analytics/query/card_played_popularity_report/?GameType=ARENA&TimeRange=CURRENT_PATCH']
+    start_urls = ['https://hsreplay.net/analytics/query/card_list/?GameType=ARENA']
 
-    def __init__(self, params=None):
+    def __init__(self, params=None, card_hsid=None, local_update=False):
         super(HSArenaCardsSpider, self).__init__()
+        self.local_update = local_update
+        if not local_update:
+            chrome_opt = webdriver.ChromeOptions()
+            chrome_opt.add_argument('--disable-gpu')
+            chrome_opt.add_argument('--no-sandbox')
+            if platform.platform().find('Linux') != -1:
+                chrome_opt.add_argument('blink-settings=imagesEnabled=false')  # 无图模式
+                chrome_opt.add_argument('--headless')  # 无页面模式
+            self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         self.ifanr = iFanr()
         self.total_count = 0
@@ -27,53 +38,54 @@ class HSArenaCardsSpider(scrapy.Spider):
         self.temp_count = 0
         self.cards_series = {}
         self.extra_data_flag = True if params=='extra_data' else False
+        self.single_card = card_hsid
+        self.addCookieFlag = True
+        # if params == 'extra_data':
+        # with open(file, 'r', encoding='UTF-8') as f:
+        #     list = json.load(f)
+        #     self.ifanrArenaList = list['data']
 
     def spider_closed(self):
         now = datetime.now().strftime(SQL_FULL_DATETIME)
-        # db = DBManager()
-        # fc = db.select('cards_arenacards', cols="name, dbfId, hsId, cardClass, classification, ename, "
-        #                                         "deck_pop, copies, deck_winrate, times_played, played_pop, played_winrate", today=True)
-        # filename ="{}/{}_arena_json_file.json".format(ARENA_FILES, datetime.now().strftime('%Y%m%d_%H%M%S'))
-        # json_str = json.dumps({'data': fc}, indent=4, ensure_ascii=False, cls=DecimalEncoder)
-        # with open(filename, 'w', encoding='utf-8') as json_file:
-        #     json_file.write(json_str)
-        #
-        # self.ifanr.import_table_data(tableID=self.ifanr.tablesID['arena_cards'], filename=filename)
-        # res = self.ifanr.get_table_data(tableID=iFanr.tablesID['table_config'])
-        # if res:
-        #     if (res.get('meta').get('total_count') and res.get('objects')):
-        #         arena_config = res.get('objects')[0]
-        #         id = arena_config['id']
-        #         backup_table = arena_config['arena_table_backup']
-        #         online_table = arena_config['arena_table_online']
-        #         self.ifanr.import_table_data(tableID=backup_table, filename=filename)
-        # else:
-        #     print('yf_log res is none')
-        #
+        if not self.local_update:
+            self.browser.quit()
         print('{0}:HSArenaCards end'.format(now))
 
 
     def parse(self, response):
-        content = json.loads(response.body).get('series').get('data')
+        jsonData = response.css('pre::text').extract_first('')
+        content = json.loads(jsonData).get('series').get('data')
         for faction in content:
             self.total_count += len(content[faction])
         for faction in content:
         # faction = 'ALL'
-            card_played_list = []
+        #     card_played_list = []
             for item in content[faction]:
+                if self.single_card and item.get('dbf_id') != int(self.single_card):
+                    continue
+                # if item.get('dbf_id')!=60016:
+                #     continue
                 card = HSArenaCardsSpiderItem()
                 card['classification'] = faction
                 card['dbfId'] = item.get('dbf_id')
-                card['times_played'] = item.get('total') if item.get('total') else None
-                card['played_pop'] = round(float(item.get('popularity')), 4) if item.get('popularity') else None
-                card['played_winrate'] = round(item.get('winrate'), 4) if item.get('winrate') else None
-                card_played_list.append(card)
-            self.cards_series[faction] = card_played_list
-        yield Request(url='https://hsreplay.net/analytics/query/card_included_popularity_report/?GameType=ARENA&TimeRange=CURRENT_PATCH',
-                      callback=self.final_parse, dont_filter=True)
+                # card['times_played'] = item.get('total') if item.get('total') else None
+                card['times_played'] = item.get('times_played')
+                # card['played_pop'] = round(float(item.get('popularity')), 4) if item.get('popularity') else None
+                card['deck_pop'] = item.get('included_popularity')
+                # card['played_winrate'] = round(item.get('winrate'), 4) if item.get('winrate') else None
+                card['deck_winrate'] = item.get('included_winrate')
+                card['played_winrate'] = item.get('winrate_when_played')
+                card['copies'] = item.get('included_count')
+                card['extra_data_flag'] = self.extra_data_flag
+                yield card
+            #     card_played_list.append(card)
+            # self.cards_series[faction] = card_played_list
+        # yield Request(url='https://hsreplay.net/analytics/query/card_included_popularity_report_v2/?GameType=ARENA',
+        #               callback=self.final_parse, dont_filter=True)
 
     def final_parse(self, response):
-        content = json.loads(response.body).get('series').get('data')
+        jsonData = response.css('pre::text').extract_first('')
+        content = json.loads(jsonData).get('series').get('data')
         series = self.cards_series
         for faction in series:
             print(faction)

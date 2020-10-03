@@ -9,7 +9,8 @@ class HearthStoneDeck():
         self.cards = cards
 
     def getHeroesId(self, str):
-        heroes = {'Druid': 274, 'Hunter': 31, 'Mage': 637, 'Paladin': 671, 'Priest': 813, 'Rogue': 930, 'Shaman': 1066, 'Warlock': 893, 'Warrior': 7}
+        heroes = {'Druid': 274, 'Hunter': 31, 'Mage': 637, 'Paladin': 671, 'Priest': 813, 'Rogue': 930,
+                  'Shaman': 1066, 'Warlock': 893, 'Warrior': 7, 'Demonhunter':56550}
         return heroes.get(str.capitalize())
 
     def genDeckString(self):

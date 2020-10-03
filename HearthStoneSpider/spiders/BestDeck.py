@@ -7,39 +7,46 @@ import json
 import copy
 import re
 import datetime
-import requests
+import platform
 
 from selenium import webdriver
 from scrapy import signals
 from pydispatch import dispatcher
 from scrapy.http import Request
+from scrapy.http import HtmlResponse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from HearthStoneSpider.tools.utils import reMatchFormat
 from HearthStoneSpider.items import HSDecksSpiderItem
-from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME
+from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME, CHANGE_LANGUAGE
 from HearthStoneSpider.tools.ifan import iFanr
 
 class BestdeckSpider(scrapy.Spider):
     name = 'BestDeck'
     allowed_domains = ['47.98.187.217']
 
-    def __init__(self):
+    def __init__(self, faction=None):
         super(BestdeckSpider, self).__init__()
         chrome_opt = webdriver.ChromeOptions()
-        chrome_opt.add_argument('blink-settings=imagesEnabled=false')  # 无图模式
         chrome_opt.add_argument('--disable-gpu')
-        chrome_opt.add_argument('--headless')  # 无页面模式
+        chrome_opt.add_argument('--no-sandbox')
+        if platform.platform().find('Linux') != -1:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false')  # 无图模式
+            chrome_opt.add_argument('--headless')  # 无页面模式
+        else:
+            chrome_opt.add_argument('blink-settings=imagesEnabled=false')  # 无图模式
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
         # dispatcher.connect(self.item_scraped, signals.item_scraped)
         self.ifanr = iFanr()
+        self.langToggleClicked = False
+        self.addCookieFlag = True
+        self.faction = eval(faction) if faction else None
 
     def start_requests(self):
-        # for url in self.start_urls:
-        url = 'http://47.98.187.217/winrate/?rank_range=All&format=json&create_time={0}'.format(time.strftime("%Y-%m-%d", time.localtime()))
+        url = 'http://47.98.187.217/winrate/?rank_range=BRONZE_THROUGH_GOLD&format=json&create_time={0}'.format(time.strftime("%Y-%m-%d", time.localtime()))
         yield Request(url, dont_filter=True)
 
     def spider_closed(self):
@@ -54,9 +61,12 @@ class BestdeckSpider(scrapy.Spider):
         next_url = content.get('next')
         results = content.get('results')
         for item in results:
-            # if item['archetype'] != 'Embiggen Druid' and item['archetype'] != 'Galakrond Rogue' \
-            #         and item['archetype'] != 'Highlander Quest Shaman' and item['archetype'] != 'Dragon Paladin':
+            # if item['archetype'].lower() != 'HIGHLANDER HUNTER'.lower():
             #     continue
+            faction = item['faction']['id']
+            self.faction = [faction.lower() for faction in self.faction] if self.faction else None
+            if self.faction and faction.lower() not in self.faction:
+                continue
             if (item['archetype'] != 'Other'):
                 faction = item['faction']['id']
                 deck_name = item['archetype']
@@ -66,7 +76,7 @@ class BestdeckSpider(scrapy.Spider):
                 deck_id = best_deck[0]
                 winrate = best_deck[1]
                 games = best_deck[2]
-                deck_url = 'https://hsreplay.net/decks/{0}/#tab=overview'.format(deck_id)
+                deck_url = 'https://hsreplay.net/decks/{0}/#rankRange=DIAMOND_THROUGH_LEGEND&tab=overview'.format(deck_id)
                 yield Request(url=deck_url, meta={
                     'deck_id': deck_id,
                     'faction': faction,
@@ -90,6 +100,21 @@ class BestdeckSpider(scrapy.Spider):
         hs_item['mode'] = 'Standard'
         hs_item['last_30_days'] = False
 
+        if CHANGE_LANGUAGE and not self.langToggleClicked and platform.platform().find('Windows') != -1:
+            langToggle = self.browser.find_elements_by_css_selector('.dropdown-toggle')[0]
+            langToggle.click()
+            langItemEn = self.browser.find_elements_by_css_selector('.dropdown-menu li')[0]
+            langItemEn.click()
+            overviewBtn = self.browser.find_elements_by_css_selector('#tab-overview')[0]
+            overviewBtn.click()
+            time.sleep(3)
+            self.langToggleClicked = True
+            response = HtmlResponse(
+                url=self.browser.current_url,
+                body=self.browser.page_source,
+                encoding='utf-8',
+            )
+
         deck_info = response.css('.infobox ul li span.infobox-value::text').extract()
         if len(deck_info)>0:
             dust_cost = deck_info[0].split(' ')[0]
@@ -98,7 +123,6 @@ class BestdeckSpider(scrapy.Spider):
         deck_data = response.css('.infobox section ul span.infobox-value::text').extract()
         if len(deck_data)>0:
             real_game_count = int(deck_data[0].replace(',', '').split(' ')[0])
-            print('ababab', hs_item['deck_id'], real_game_count)
         # else:
         #     games = meta.get('games', '')
         #     print('aaa games', hs_item['deck_id'], games)
@@ -150,6 +174,8 @@ class BestdeckSpider(scrapy.Spider):
         for item in win_rate_nodes[4:]:
             faction_str = item.css('td span.player-class::attr(class)').extract_first('')
             faction = reMatchFormat('.* (\w*)$', faction_str.strip()).capitalize()
+            if faction == 'Demonhunter':
+                faction = 'DemonHunter'
             win_rate = item.css('td.winrate-cell::text').extract_first('')
             win_rate = re.findall('\d+', win_rate)
             win_rate = '.'.join(win_rate)
@@ -171,7 +197,7 @@ class BestdeckSpider(scrapy.Spider):
         # re_dict = json.loads(res.text)
         # hs_item['mulligan'] = re_dict['series']['data']['ALL']
         # yield hs_item
-        url = 'https://hsreplay.net/analytics/query/single_deck_mulligan_guide/?GameType=RANKED_STANDARD&RankRange=ALL&Region=ALL&PlayerInitiative=ALL&deck_id=' + \
+        url = 'https://hsreplay.net/analytics/query/single_deck_mulligan_guide_v2/?GameType=RANKED_STANDARD&RankRange=DIAMOND_THROUGH_LEGEND&Region=ALL&PlayerInitiative=ALL&deck_id=' + \
               hs_item['deck_id']
         yield Request(url=url, callback=self.parse_mulligan, meta={'data': hs_item}, dont_filter=True)
         # yield hs_item
