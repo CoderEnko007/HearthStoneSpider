@@ -22,7 +22,7 @@ class HSDecksSpider(scrapy.Spider):
     name = 'HSWildDecks'
     allowed_domains = ['hsreplay.net/decks/']
     # start_urls = ['https://hsreplay.net/decks/#gameType=RANKED_WILD&timeRange=LAST_30_DAYS']
-    start_urls = ['https://hsreplay.net/decks/#rankRange=DIAMOND_THROUGH_LEGEND&wildCard=yes&gameType=RANKED_WILD&timeRange=LAST_7_DAYS']
+    start_urls = ['https://hsreplay.net/decks/#rankRange=DIAMOND_THROUGH_LEGEND&wildCard=yes&gameType=RANKED_WILD']
     # start_urls = ['https://hsreplay.net/decks/#wildCard=yes&gameType=RANKED_WILD&includedCards=56622']
 
     def __init__(self):

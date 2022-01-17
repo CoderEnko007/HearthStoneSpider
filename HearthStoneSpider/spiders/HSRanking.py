@@ -17,7 +17,7 @@ class HSRankingSpider(scrapy.Spider):
     allowed_domains = ['hsreplay.net']
     start_urls = ['https://hsreplay.net/analytics/query/player_class_performance_summary/']
 
-    def __init__(self):
+    def __init__(self, local_update=False):
         super(HSRankingSpider, self).__init__()
         chrome_opt = webdriver.ChromeOptions()
         chrome_opt.add_argument('blink-settings=imagesEnabled=false')  # 无图模式
@@ -28,6 +28,7 @@ class HSRankingSpider(scrapy.Spider):
         dispatcher.connect(self.spider_closed, signals.spider_closed)
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
         self.addCookieFlag = False
+        self.local_update = local_update
 
     def spider_closed(self):
         now = datetime.now().strftime(SQL_FULL_DATETIME)
@@ -39,23 +40,25 @@ class HSRankingSpider(scrapy.Spider):
         # 炉石传说情报站webhook
         requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/ndhvGONeNt')
         # 炉石数据可视化webhook
-        requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/T1vA85AhPG')
+        # requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/T1vA85AhPG')
 
     def parse(self, response):
-        game_type = {'Standard': 2, 'Wild': 30, 'Arena': 3}
+        game_type = {'Standard': 2, 'Wild': 30, 'Arena': 3, 'Classic': 58, 'Duels': 55}
         print('response:', response.status, response.text)
         jsonData = response.css('pre::text').extract_first('')
         try:
             content = json.loads(jsonData).get('series').get('data')
         except Exception as e:
             print('出错了！！',e)
-            print('response:', response.status, response.text)
-            print('jsonData:', jsonData)
-            return
+            # print('response:', response.status, response.text)
+            # print('jsonData:', jsonData)
+            # return
+            jsonData = requests.get('https://hsreplay.net/analytics/query/player_class_performance_summary/').text
+            content = json.loads(jsonData).get('series').get('data')
         for faction in content:
             for item in content[faction]:
                 rank_item = HSRankingSpiderItem()
-                if faction.lower()=='demonhunter':
+                if faction.lower() == 'demonhunter':
                     rank_item['faction'] = 'DemonHunter'
                 else:
                     rank_item['faction'] = faction.capitalize()

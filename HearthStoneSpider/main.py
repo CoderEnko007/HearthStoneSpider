@@ -21,14 +21,18 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=ALL'])
 # execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=VIP'])
 # execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=TOP_1000_LEGEND'])
-# execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=LEGEND'])
+# execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=LEGEND', '-a',
+#          "faction=['Hunter', 'Mage', 'Paladin', 'Priest', 'Rogue', 'Shaman', 'Warlock', 'Warrior']"])
 # execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=DIAMOND_THROUGH_LEGEND'])
-# execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=DIAMOND_FOUR_THROUGH_DIAMOND_ONE'])
+# execute(['scrapy', 'crawl', 'HSWinRate', '-a', 'rankRangeParams=DIAMOND_FOUR_THROUGH_DIAMOND_ONE', '-a',
+#          "faction=['Hunter', 'Mage', 'Paladin', 'Priest', 'Rogue', 'Shaman', 'Warlock', 'Warrior']"])
 
-# execute(['scrapy', 'crawl', 'HSWinRate', '-a', "archetype=Tortollan Mage"])
-
+# execute(['scrapy', 'crawl', 'HSWinRate', '-a', "archetype=Deathrattle Demon Hunter"])
 # execute(['scrapy', 'crawl', 'HSWinRate', '-a', "faction=['DemonHunter']"])
-# execute(['scrapy', 'crawl', 'BestDeck', '-a', "faction=['Warrior']"])
+
+# execute(['scrapy', 'crawl', 'HSWinRate', '-a',
+#          "faction=['Hunter', 'Mage', 'Paladin', 'Priest', 'Rogue', 'Shaman', 'Warlock', 'Warrior']"])
+# execute(['scrapy', 'crawl', 'BestDeck', '-a', "faction=['DemonHunter']"])
 #
 # execute(['scrapy', 'crawl', 'HSArchetype'])
 # execute(['scrapy', 'crawl', 'HSArchetype', '-a', 'rankRangeParams=ALL'])
@@ -42,5 +46,5 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # execute(['scrapy', 'crawl', 'HSArenaCards', '-a', "params=extra_data"])
 # execute(['scrapy', 'crawl', 'HSArenaCards', '-a', "card_hsid=54264"])
 
-# execute(['scrapy', 'crawl', 'HSBattlegrounds'])
+# execute(['scrapy', 'crawl', 'HSBattlegrounds', '-a', 'local_update=False'])
 execute(['scrapy', 'crawl', 'HSArenaCards', '-a', 'local_update=True'])

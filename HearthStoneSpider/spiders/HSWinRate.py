@@ -13,6 +13,7 @@ from pydispatch import dispatcher
 from scrapy import signals
 from scrapy.http import Request
 from scrapy.http import HtmlResponse
+# import cfscrape
 
 from HearthStoneSpider.items import HSWinRateSpiderItem
 from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME, CHANGE_LANGUAGE
@@ -21,8 +22,8 @@ from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME, C
 class HSWinRateSpider(scrapy.Spider):
     name = 'HSWinRate'
     allowed_domains = ['hsreplay.net/meta/#tab=archetypes']
-    start_urls = ['https://hsreplay.net/meta/#tab=archetypes']
-    # start_urls = ['https://hsreplay.net/meta/#tab=archetypes&timeFrame=LAST_7_DAYS']
+    # start_urls = ['https://hsreplay.net/meta/#tab=archetypes']
+    start_urls = ['https://hsreplay.net/meta/#tab=archetypes&timeFrame=LAST_7_DAYS']
 
     def __init__(self, rankRangeParams=None, timeFrame=None, faction=None, archetype=None):
         super(HSWinRateSpider, self).__init__()
@@ -69,6 +70,21 @@ class HSWinRateSpider(scrapy.Spider):
         # else:
         #     self.addCookieFlag = False if self.rankRangeParams == 'BRONZE_THROUGH_GOLD' else True
         # self.langToggleClicked = False
+
+    # def start_requests(self):
+    #     for url in self.start_urls:
+    #         # token, agent = cfscrape.get_tokens(url)
+    #         # yield Request(url=url, cookies={"cfuid":token["cfuid"]}, headers={'User-Agent': agent})
+    #         headers = {
+    #             'cookie': '_ga=GA1.2.1859036328.1547007109; __stripe_mid=906f8ef5-861b-47ac-b541-501535d2affe; setting-archetype-favorites=[]; setting-archetype-custom-popularities={%22350%22:0%2C%22355%22:1}; setting-archetype-ignored=[]; setting-seen-hero-list-click-hint=%221%22; setting-seen-play-impact-tooltip=%221%22; setting-seen-minion-list-click-hint=%221%22; setting-seen-comp-list-click-hint=%221%22; setting-seen-hero-affinity-tooltip=%221%22; setting-bgs-timeframe-filter=%22LAST_7_DAYS%22; _hp2_id.56269304=%7B%22userId%22%3A%222053414207478917%22%2C%22pageviewId%22%3A%22801233991871517%22%2C%22sessionId%22%3A%228040163134817662%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D; visit_count-dts=1585882654; django_language=zh-hans; setting-bgs-mmr-filter-top=%22TOP_50_PERCENT%22; setting-bgs-mmr-filter=%22TOP_50_PERCENT%22; visit_count-c=77; visit_count-ts=1593239534; _pubcid=480597ac-e300-43b6-a615-468266fae033; cto_bidid=3Rp0719DT1FpR3pXcXVCYyUyQmE3RmJ2QkthWGNucHI3WlBXY2tMcnhmcGhaZiUyRkVOWVRvMGJhWUdjWk56R290WmsxWFVpeW5SNGZ0eDVCVHdCM2lPTjlKUnA4UUVmOGJnd1JFeFl4Sm90cDdpUTNtTmMlM0Q; cto_bundle=zPt8g19Ed09CTk1jdERUdGwlMkJBZVJiYVhZMmpTMDY3dGlHcjMwS29aaldhM2pLZkpoajFuJTJGOVVnRFFzM0hSSEZRREN0djhPT1JNY0FBcHh3QVpjWFNOendmaVU1OFVvYnF1UjF3UWtEcXZYM01PVkZJRnZZYW4wMGpDNEF1Z2VlT1VFUDY; setting-cards-page-columns=[%22includedPopularity%22%2C%22includedWinrate%22%2C%22timesPlayedTotal%22%2C%22mulliganWinrate%22%2C%22keepPercent%22%2C%22drawnWinrate%22]; __gads=ID=4ec6cec2c06456fd:T=1604044104:S=ALNI_MbRE3vjmiR1rtUkHdEDvlvvM65NWw; __qca=P0-1525838415-1604042579216; __cfduid=d7cdd75aa178d733017108221057d5ff21605103008; csrftoken=QGJkzkD6sT6LuOnbSDqoWchpqXrDv4d2HylJCQZ9JlNauCRBWxA1z8s7C3KTwGny; sessionid=7j2i8vatzph9g1ncv9fku0zmb0hlcnwb; _gid=GA1.2.711372017.1606277339; twitch-vods-popup-decks-closed=1; cf_chl_1=5bb45a6a9508341; cf_chl_prog=x21; cf_clearance=7c7702a831412b7fd9523e1d09d0a1f34de33fc0-1606482446-0-150; _gat=1',
+    #             'referer': 'https://hsreplay.net/',
+    #             'sec-ch-ua': '"Chromium";v="86", "\"Not\\A;Brand";v="99", "Google Chrome";v="86"',
+    #             'sec-ch-ua-mobile': '?0',
+    #             'sec-fetch-dest': 'empty',
+    #             'sec-fetch-mode': 'cors',
+    #             'sec-fetch-site': 'same-origin'
+    #         }
+    #         yield Request(url=url, headers=headers, dont_filter=True)
 
     def spider_closed(self):
         time.sleep(5)

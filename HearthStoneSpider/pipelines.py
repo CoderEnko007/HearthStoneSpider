@@ -517,6 +517,7 @@ class MysqlTwistedPipeline(object):
         spider.scraped_count += 1
         print('scraped_count:{}, temp_count: {}, total_count:{}'.format(spider.scraped_count, spider.temp_count,
                                                                         spider.total_count))
+        # if spider.scraped_count >= spider.total_count-18:
         if spider.scraped_count == spider.total_count:
             fc = self.select(cursor, 'cards_arenacards', cols="name, dbfId, hsId, cost, rarity, cardClass, classification, ename, img_tile_link,"
                                                               "deck_pop, copies, deck_winrate, times_played, played_pop, played_winrate",

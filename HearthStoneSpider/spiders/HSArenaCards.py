@@ -2,6 +2,7 @@
 import scrapy
 import json
 import platform
+import requests
 from datetime import datetime
 
 from scrapy import signals
@@ -18,12 +19,15 @@ from HearthStoneSpider.tools.utils import DecimalEncoder
 class HSArenaCardsSpider(scrapy.Spider):
     name = 'HSArenaCards'
     allowed_domains = ['hsreplay.net']
-    start_urls = ['https://hsreplay.net/analytics/query/card_list/?GameType=ARENA']
+    # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=LAST_7_DAYS'
+    url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=CURRENT_EXPANSION'
+    # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=ARENA_EVENT'
+    start_urls = [url]
 
     def __init__(self, params=None, card_hsid=None, local_update=False):
         super(HSArenaCardsSpider, self).__init__()
-        self.local_update = local_update
-        if not local_update:
+        self.local_update = eval(local_update)
+        if not self.local_update:
             chrome_opt = webdriver.ChromeOptions()
             chrome_opt.add_argument('--disable-gpu')
             chrome_opt.add_argument('--no-sandbox')
@@ -54,7 +58,11 @@ class HSArenaCardsSpider(scrapy.Spider):
 
     def parse(self, response):
         jsonData = response.css('pre::text').extract_first('')
-        content = json.loads(jsonData).get('series').get('data')
+        try:
+            content = json.loads(jsonData).get('series').get('data')
+        except Exception as e:
+            print('出错了！！', e)
+            return
         for faction in content:
             self.total_count += len(content[faction])
         for faction in content:

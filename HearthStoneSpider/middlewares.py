@@ -142,9 +142,35 @@ class JSPageMiddleware(object):
                 encoding='utf-8',
                 request=request
             )
+        elif spider.name == 'HSBattlegrounds' and spider.local_update:
+            BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+            file = 'battlegrounds.html'
+            file_name = os.path.join(BASE_DIR, 'tools', file)
+            with open(file_name, 'r', encoding='UTF-8') as f:
+                page_source = f.read()
+            return HtmlResponse(
+                url='127.0.0.1',
+                body=page_source,
+                encoding='utf-8',
+                request=request
+            )
+        elif spider.name =='HSRanking' and spider.local_update:
+            BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+            file = 'rank.html'
+            file_name = os.path.join(BASE_DIR, 'tools', file)
+            with open(file_name, 'r', encoding='UTF-8') as f:
+                page_source = f.read()
+            return HtmlResponse(
+                url='127.0.0.1',
+                body=page_source,
+                encoding='utf-8',
+                request=request
+            )
         # 随机更换user-agent
         def get_ua():
             return getattr(self.ua, self.ua_type)
+        # request.headers['User-Agent'] = get_ua()
+        # request.headers['referer'] = 'https://hsreplay.net/'
         request.headers.setdefault('User-Agent', get_ua())
         # request.headers.setdefault('referer', 'https://hsreplay.net/')
         print('get user-agent', request.headers.get('User-Agent'))
@@ -162,7 +188,7 @@ class JSPageMiddleware(object):
         if self.set_cookie_flag and (hasattr(spider, 'addCookieFlag') and spider.addCookieFlag):
             spider.browser.delete_all_cookies()
             spider.browser.get(request.url)
-            time.sleep(15)
+            time.sleep(5)
             print('原始cookies:', spider.browser.get_cookies())
             with open(self.cookie_path, 'r') as f:
                 listCookies = json.loads(f.read())
@@ -170,7 +196,7 @@ class JSPageMiddleware(object):
                 if 'expiry' in cookie:
                     del cookie['expiry']
                 spider.browser.add_cookie(cookie)
-            time.sleep(15)
+            time.sleep(5)
             print('新的cookies:', spider.browser.get_cookies())
             self.set_cookie_flag = False
             # if hasattr(spider, 'rankRange') and spider.rankRange:
@@ -246,7 +272,7 @@ class JSPageMiddleware(object):
                 time.sleep(5)
         else:
             time.sleep(5)
-        time.sleep(5)
+        time.sleep(12)
         now = datetime.now().strftime(SQL_FULL_DATETIME)
         print('{0}访问:{1}'.format(now, request.url))
         return HtmlResponse(

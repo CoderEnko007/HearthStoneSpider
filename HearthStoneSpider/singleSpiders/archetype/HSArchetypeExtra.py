@@ -11,9 +11,12 @@ from HearthStoneSpider.settings import SQL_FULL_DATETIME
 
 if __name__ == '__main__':
     BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-    files = {'One_Through_Five': 'One_Through_Five.html',
-             'Legend_Only': 'Legend_Only.html',
-             'Six_Through_Ten': 'Six_Through_Ten.html'}
+    files = {'BRONZE_THROUGH_GOLD': 'Bronze_through_Gold.html',
+             'DIAMOND_FOUR_THROUGH_DIAMOND_ONE': 'Diamond_4_1.html',
+             'DIAMOND_THROUGH_LEGEND': 'Diamond_through_Legend.html',
+             'LEGEND': 'Legend.html',
+             'TOP_1000_LEGEND': 'Legend_top_1000.html'
+             }
     db = DBManager()
     for range, file in files.items():
         file_name = os.path.join(BASE_DIR, file)
@@ -28,9 +31,13 @@ if __name__ == '__main__':
                 archetype_list_items = item.css('li.archetype-list-item')
                 for arche in archetype_list_items:
                     archetype_name = arche.css('div.archetype-name::text').extract_first('')
-                    faction = archetype_name.split(' ')[-1]
-                    if faction == 'Handlock':
-                        faction = 'Warlock'
+                    faction = archetype_name.split(' ')
+                    if len(faction) > 2 and faction[-2].lower() == 'demon':
+                        faction = 'DemonHunter'
+                    else:
+                        faction = faction[-1]
+                        if faction == 'Handlock':
+                            faction = 'Warlock'
                     win_rate = arche.css('div.archetype-data::text').extract_first('')
 
                     select_sql = "SELECT popularity, games FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \

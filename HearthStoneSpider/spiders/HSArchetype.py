@@ -20,8 +20,8 @@ from HearthStoneSpider.settings import SQL_DATETIME_FORMAT, SQL_FULL_DATETIME, C
 class HSArchetypeSpider(scrapy.Spider):
     name = 'HSArchetype'
     allowed_domains = ['hsreplay.net/meta']
-    start_urls = ['http://hsreplay.net/meta/']
-    # start_urls = ['https://hsreplay.net/meta/#timeFrame=LAST_7_DAYS']
+    # start_urls = ['http://hsreplay.net/meta/']
+    start_urls = ['https://hsreplay.net/meta/#timeFrame=LAST_7_DAYS']
 
     def __init__(self, rankRangeParams=None, timeFrame=None):
         super(HSArchetypeSpider, self).__init__()

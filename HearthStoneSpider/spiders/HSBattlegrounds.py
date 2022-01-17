@@ -17,15 +17,16 @@ class HSBattlegroundsSpider(scrapy.Spider):
     allowed_domains = ['hsreplay.net/']
     start_urls = ['https://hsreplay.net/analytics/query/battlegrounds_data_volume_manifest/']
 
-    def __init__(self):
+    def __init__(self, local_update=False):
         super(HSBattlegroundsSpider, self).__init__()
+        self.local_update = eval(local_update)
         self.mmrRange = 'TOP_50_PERCENT'
         self.timeRange = 'LAST_7_DAYS'
         chrome_opt = webdriver.ChromeOptions()
         chrome_opt.add_argument('blink-settings=imagesEnabled=false')  # 无图模式
         chrome_opt.add_argument('--disable-gpu')
         chrome_opt.add_argument('--no-sandbox')
-        chrome_opt.add_argument('--headless')  # 无页面模式
+        # chrome_opt.add_argument('--headless')  # 无页面模式
         self.browser = webdriver.Chrome(chrome_options=chrome_opt)
         dispatcher.connect(self.spider_closed, signals.spider_closed)  # scrapy信号量，spider退出时关闭browser
         dispatcher.connect(self.engine_stopped, signals.engine_stopped)
@@ -44,11 +45,15 @@ class HSBattlegroundsSpider(scrapy.Spider):
         requests.get('https://cloud.minapp.com/oserve/v1/incoming-webhook/qX9Oup6OdW/') # battlegrounds_tier_list
 
     def parse(self, response):
-        jsonData = response.css('pre::text').extract_first('')
+        if self.local_update:
+            jsonData = '{"render_as":"table","series":{"metadata":{"CURRENT_BATTLEGROUNDS_PATCH":{"min_mmr":{"ALL":434.0,"TOP_20_PERCENT":6741.0,"TOP_50_PERCENT":6094.0,"TOP_5_PERCENT":7687.0,"TOP_1_PERCENT":9920.0},"total_games":6862716},"LAST_7_DAYS":{"min_mmr":{"ALL":434.0,"TOP_50_PERCENT":6094.0,"TOP_20_PERCENT":6741.0,"TOP_5_PERCENT":7687.0,"TOP_1_PERCENT":9920.0},"total_games":4026019},"current_battlegrounds_patch_date":"2021-07-02"},"data":[]},"as_of":"2021-07-13T01:53:16Z"}'
+        else:
+            jsonData = response.css('pre::text').extract_first('')
         content = json.loads(jsonData).get('series').get('metadata')
         self.total_games = content.get(self.timeRange).get('total_games')
         self.min_mmr = content.get(self.timeRange).get('min_mmr').get(self.mmrRange)
 
+        # https://hsreplay.net/analytics/query/battlegrounds_list_heroes/?BattlegroundsMMRPercentile=TOP_50_PERCENT&BattlegroundsTimeRange=LAST_7_DAYS
         url = 'https://hsreplay.net/analytics/query/battlegrounds_list_heroes/?BattlegroundsMMRPercentile={}&BattlegroundsTimeRange={}'\
             .format(self.mmrRange, self.timeRange)
         yield Request(url=url, callback=self.json_parse, dont_filter=True)

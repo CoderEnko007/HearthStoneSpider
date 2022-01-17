@@ -163,6 +163,7 @@ class HSDecksSpider(scrapy.Spider):
             if total_page and self.total_page==0:
                 self.total_page = int(re.match('.*\/ ?(\d*)', total_page).group(1))
                 print('yf_log total_page:', self.total_page)
+                # self.total_page = 1
             if self.total_page > 0:
                 self.current_page += 1
                 # 爬取一半需要重启webdriver
@@ -203,10 +204,16 @@ class HSDecksSpider(scrapy.Spider):
         hs_item['mode'] = meta.get('mode', '')
         hs_item['last_30_days'] = meta.get('last_30_days', '')
 
-        real_game_count = response.css('.infobox section ul span.infobox-value').extract()
-        if real_game_count:
-            real_game_count = real_game_count[0].replace(',', '')
-            hs_item['real_game_count'] = int(re.findall('\d+', real_game_count)[0])
+        deck_data = response.css('.infobox section ul span.infobox-value').extract()
+        if len(deck_data) > 0:
+            for item in deck_data:
+                t = item.replace(',', '').split(' ')
+                game_count_item = t[0] if 'games' in t else ''
+            real_game_count = int(game_count_item) if game_count_item.isdigit() else ''
+            # match_list = re.findall('\d+', real_game_count)
+            # hs_item['real_game_count'] = int(match_list[0]) if len(match_list) > 0 else hs_item['game_count']
+            # hs_item['real_game_count'] = int(re.findall('\d+', real_game_count)[0])
+            hs_item['real_game_count'] = real_game_count
         else:
             hs_item['real_game_count'] = hs_item['game_count']
 

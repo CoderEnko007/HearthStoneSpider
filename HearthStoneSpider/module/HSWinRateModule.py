@@ -16,7 +16,7 @@ def update_winrate(self, cursor, item):
         local_update(cursor, data)
     else:
         # 服务器更新
-        remote_update(self, cursor, item)
+        remote_update(self, cursor, data)
 
 def format_cards_list(cursor, cards_list):
     for cards in cards_list:
@@ -81,14 +81,16 @@ def remote_update(self, cursor, data):
             format_list = format_cards_list(cursor, [core_cards, pop_cards])
             data['core_cards'] = json.dumps(format_list[0], ensure_ascii=False)
             data['pop_cards'] = json.dumps(format_list[1], ensure_ascii=False)
-        select_sql = "SELECT id FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND to_days(create_time)=to_days(now())" \
+        select_sql = "SELECT id FROM winrate_hswinrate WHERE faction=%r AND rank_range=%r AND archetype=%r AND " \
+                     "to_days(create_time)=to_days(now())" \
                      % (data['faction'], data['rank_range'], data['archetype'])
         res = cursor.execute(select_sql)
         if res > 0:
             res_arche = cursor.fetchone()
             if data['archetype'] != 'Other':
-                update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, faction_popularity=%f, real_winrate=%f, real_games=%d, best_matchup=%r, worst_matchup=%r," \
-                             "pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, matchup=%r, create_time=%r where id=%r" \
+                update_sql = "update winrate_hswinrate set winrate=%f, popularity=%f, games=%d, faction_popularity=%f, real_winrate=%f, " \
+                             "real_games=%d, best_matchup=%r, worst_matchup=%r, pop_deck=%r, best_deck=%r, core_cards=%r, pop_cards=%r, " \
+                             "matchup=%r, create_time=%r where id=%r" \
                              % (data['winrate'], data['popularity'], data['games'], data['faction_popularity'],
                                 data['real_winrate'], data['real_games'], data['best_matchup'], data['worst_matchup'],
                                 data['pop_deck'], data['best_deck'], data['core_cards'], data['pop_cards'],

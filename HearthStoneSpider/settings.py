@@ -55,9 +55,10 @@ ROBOTSTXT_OBEY = False
 # See https://doc.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
    # 'HearthStoneSpider.middlewares.HearthstonespiderDownloaderMiddleware': 543,
-   'HearthStoneSpider.middlewares.RandomProxyMiddleware': 540,
+   # 'HearthStoneSpider.middlewares.RandomProxyMiddleware': 540,
    'HearthStoneSpider.middlewares.JSPageMiddleware': 543,
    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
+   # 'scrapy_cloudflare_middleware.middlewares.CloudFlareMiddleware': 560
 }
 
 # Enable or disable extensions
@@ -100,12 +101,12 @@ AUTOTHROTTLE_ENABLED = True
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
-MYSQL_HOST = '127.0.0.1'
-# MYSQL_HOST = '47.98.187.217'
+# MYSQL_HOST = '127.0.0.1'
+MYSQL_HOST = '47.98.187.217'
 MYSQL_DBNAME = 'hearthstonestation'
 MYSQL_USER = 'root'
-# MYSQL_PWD = '666666'
-MYSQL_PWD = ''
+MYSQL_PWD = '666666'
+# MYSQL_PWD = ''
 
 SQL_DATETIME_FORMAT = "%Y-%m-%d"
 SQL_FULL_DATETIME = "%Y-%m-%d %H:%M:%S"

@@ -8,9 +8,12 @@ from HearthStoneSpider.settings import SQL_FULL_DATETIME
 
 if __name__ == '__main__':
     BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-    files = {'One_Through_Five': 'One_Through_Five.html',
-             'Legend_Only': 'Legend_Only.html',
-             'Six_Through_Ten': 'Six_Through_Ten.html'}
+    files = {'BRONZE_THROUGH_GOLD': 'Bronze_through_Gold.html',
+            'DIAMOND_FOUR_THROUGH_DIAMOND_ONE': 'Diamond_4_1.html',
+            'DIAMOND_THROUGH_LEGEND': 'Diamond_through_Legend.html',
+            'LEGEND': 'Legend.html',
+            'TOP_1000_LEGEND': 'Legend_top_1000.html'
+            }
     db = DBManager()
     for range, file in files.items():
         file_name = os.path.join(BASE_DIR, file)
@@ -21,6 +24,10 @@ if __name__ == '__main__':
             faction_boxes = t_selector.css('div.class-box-container div.box.class-box')
             for box in faction_boxes:
                 faction = box.css('div.box-title span.player-class::text').extract_first('')
+                faction = faction.replace(' ', '')
+                # self.faction = [faction.lower() for faction in self.faction] if self.faction else None
+                # if self.faction and faction.lower() not in self.faction:
+                #     continue
                 archetype_list = box.css('div.grid-container')[2].css('a.player-class::text').extract()
                 archetype_list_other_item = box.css('div.grid-container')[2].css('span.player-class div.tooltip-wrapper::text').extract_first('')
                 if archetype_list_other_item != '':

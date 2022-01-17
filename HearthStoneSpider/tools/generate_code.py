@@ -39,9 +39,9 @@ def printcode(length=20, count=100):  # 设置length和count默认值
             else:
                 data = {
                     'code': code,
-                    'hours': 720,
-                    'days': 30,
-                    'description': '1月',
+                    'hours': 8760,
+                    'days': 365,
+                    'description': '1年',
                     'state': 0
                 }
                 res = ifanr.add_table_data(tableID=tableID, data=data)
@@ -52,4 +52,4 @@ def printcode(length=20, count=100):  # 设置length和count默认值
 
 if __name__ == '__main__':
     # 调用函数，传入参数length和count，自定义激活码长度和数量
-    printcode(25, 10)
+    printcode(25, 5)

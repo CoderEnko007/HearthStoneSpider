@@ -60,7 +60,7 @@ class BestdeckSpider(scrapy.Spider):
         content = json.loads(response.body)
         next_url = content.get('next')
         results = content.get('results')
-        for item in results:
+        for item in results[:2]:
             # if item['archetype'].lower() != 'HIGHLANDER HUNTER'.lower():
             #     continue
             faction = item['faction']['id']
@@ -121,16 +121,16 @@ class BestdeckSpider(scrapy.Spider):
         hs_item['dust_cost'] = dust_cost if len(deck_info) else ''
 
         deck_data = response.css('.infobox section ul span.infobox-value::text').extract()
-        if len(deck_data)>0:
-            real_game_count = int(deck_data[0].replace(',', '').split(' ')[0])
-        # else:
-        #     games = meta.get('games', '')
-        #     print('aaa games', hs_item['deck_id'], games)
-        #     real_game_count = int(round(int(games)/math.pow(10,(len(games)-2)))*(math.pow(10,(len(games)-2)))) if games != '' else ''
-        #     print('bbb real_game_count', hs_item['deck_id'], real_game_count)
-        hs_item['real_game_count'] = real_game_count if len(deck_data)>0 else ''
-        # hs_item['game_count'] = hs_item['real_game_count']
-        # print('deck_id:{0}, game_count:{1}'.format(hs_item['deck_id'], hs_item['game_count']))
+        if len(deck_data) > 0:
+            print('aaaaa:', deck_data)
+            for item in deck_data:
+                t = item.replace(',', '').split(' ')
+                game_count_item = t[0] if 'games' in t else ''
+            print('bbbbb:', game_count_item)
+            real_game_count = int(game_count_item) if game_count_item.isdigit() else ''
+            hs_item['real_game_count'] = real_game_count
+        else:
+            hs_item['real_game_count'] = ''
 
         card_list_items = response.css('#overview .card-list-wrapper .card-list .tooltip-wrapper .card-tile')
         card_list = []
