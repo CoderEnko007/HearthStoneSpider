@@ -33,7 +33,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # execute(['scrapy', 'crawl', 'HSWinRate', '-a',
 #          "faction=['Hunter', 'Mage', 'Paladin', 'Priest', 'Rogue', 'Shaman', 'Warlock', 'Warrior']"])
 # execute(['scrapy', 'crawl', 'BestDeck', '-a', "faction=['DemonHunter']"])
-#
+
 # execute(['scrapy', 'crawl', 'HSArchetype'])
 # execute(['scrapy', 'crawl', 'HSArchetype', '-a', 'rankRangeParams=ALL'])
 # execute(['scrapy', 'crawl', 'HSArchetype', '-a', 'rankRangeParams=VIP'])

@@ -20,8 +20,9 @@ class HSArenaCardsSpider(scrapy.Spider):
     name = 'HSArenaCards'
     allowed_domains = ['hsreplay.net']
     # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=LAST_7_DAYS'
-    url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=CURRENT_EXPANSION'
+    # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=CURRENT_PATCH'
     # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=ARENA_EVENT'
+    url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=CURRENT_EXPANSION'
     start_urls = [url]
 
     def __init__(self, params=None, card_hsid=None, local_update=False):
