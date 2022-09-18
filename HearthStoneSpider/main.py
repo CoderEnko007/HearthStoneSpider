@@ -46,5 +46,5 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # execute(['scrapy', 'crawl', 'HSArenaCards', '-a', "params=extra_data"])
 # execute(['scrapy', 'crawl', 'HSArenaCards', '-a', "card_hsid=54264"])
 
-# execute(['scrapy', 'crawl', 'HSBattlegrounds', '-a', 'local_update=False'])
-execute(['scrapy', 'crawl', 'HSArenaCards', '-a', 'local_update=True'])
+execute(['scrapy', 'crawl', 'HSBattlegrounds', '-a', 'local_update=False'])
+# execute(['scrapy', 'crawl', 'HSArenaCards', '-a', 'local_update=True'])

@@ -39,9 +39,9 @@ def printcode(length=20, count=100):  # 设置length和count默认值
             else:
                 data = {
                     'code': code,
-                    'hours': 8760,
-                    'days': 365,
-                    'description': '1年',
+                    'hours': 720,
+                    'days': 30,
+                    'description': '1月',
                     'state': 0
                 }
                 res = ifanr.add_table_data(tableID=tableID, data=data)
