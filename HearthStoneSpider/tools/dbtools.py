@@ -10,7 +10,8 @@ class MySQLdbHelper:
         # 连接池中最大允许创建的连接数
         # 'maxcached': 20,
         conn_args = {
-            'host': '47.98.187.217',
+            # 'host': '47.98.187.217',
+            'host': '127.0.0.1',
             'db': 'hearthstonestation',
             'user': 'root',
             'password': '666666',

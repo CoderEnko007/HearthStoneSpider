@@ -124,7 +124,7 @@ def getCardsList(page=1, collectible=1):
     url = 'https://us.api.blizzard.com/hearthstone/cards'
     params = {
         'locale': 'zh_CN',
-        'set': 'forged-in-the-barrens',
+        'set': 'the-great-dark-beyond',
         'page': page,
         'collectible': collectible,
         'sort': 'name',
@@ -149,5 +149,6 @@ cardList = []
 if __name__ == '__main__':
     # update_new_cards_schedule()
     # 修改collectible=0获取衍生卡
-    cardList = getCardsList(collectible=0)
-    update_new_cards(cardList)
+    cardList = getCardsList(collectible=1)
+    pass
+    # update_new_cards(cardList)

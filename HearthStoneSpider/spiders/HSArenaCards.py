@@ -19,10 +19,11 @@ from HearthStoneSpider.tools.utils import DecimalEncoder
 class HSArenaCardsSpider(scrapy.Spider):
     name = 'HSArenaCards'
     allowed_domains = ['hsreplay.net']
+    url = 'https://hsreplay.net/api/v1/arena/card_stats/?format=json'
     # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=LAST_7_DAYS'
     # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=CURRENT_PATCH'
     # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=ARENA_EVENT'
-    url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=CURRENT_EXPANSION'
+    # url = 'https://hsreplay.net/analytics/query/card_list/?GameType=ARENA&TimeRange=CURRENT_EXPANSION'
     start_urls = [url]
 
     def __init__(self, params=None, card_hsid=None, local_update=False):
@@ -60,7 +61,8 @@ class HSArenaCardsSpider(scrapy.Spider):
     def parse(self, response):
         jsonData = response.css('pre::text').extract_first('')
         try:
-            content = json.loads(jsonData).get('series').get('data')
+            # content = json.loads(jsonData).get('series').get('data')
+            content = json.loads(jsonData).get('data')
         except Exception as e:
             print('出错了！！', e)
             return
@@ -76,15 +78,19 @@ class HSArenaCardsSpider(scrapy.Spider):
                 #     continue
                 card = HSArenaCardsSpiderItem()
                 card['classification'] = faction
+                card['card_id'] = item.get('card_id')
                 card['dbfId'] = item.get('dbf_id')
                 # card['times_played'] = item.get('total') if item.get('total') else None
-                card['times_played'] = item.get('times_played')
+                # card['times_played'] = item.get('times_played')
+                card['times_played'] = item.get('num_games')
                 # card['played_pop'] = round(float(item.get('popularity')), 4) if item.get('popularity') else None
-                card['deck_pop'] = item.get('included_popularity')
+                # card['deck_pop'] = item.get('included_popularity')
+                card['deck_pop'] = item.get('popularity')
                 # card['played_winrate'] = round(item.get('winrate'), 4) if item.get('winrate') else None
-                card['deck_winrate'] = item.get('included_winrate')
-                card['played_winrate'] = item.get('winrate_when_played')
-                card['copies'] = item.get('included_count')
+                # card['deck_winrate'] = item.get('included_winrate')
+                card['deck_winrate'] = item.get('win_rate')
+                # card['played_winrate'] = item.get('winrate_when_played')
+                # card['copies'] = item.get('included_count')
                 card['extra_data_flag'] = self.extra_data_flag
                 yield card
             #     card_played_list.append(card)

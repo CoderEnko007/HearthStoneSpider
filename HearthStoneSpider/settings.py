@@ -101,8 +101,8 @@ AUTOTHROTTLE_ENABLED = True
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
-# MYSQL_HOST = '127.0.0.1'
-MYSQL_HOST = '47.98.187.217'
+MYSQL_HOST = '127.0.0.1'
+# MYSQL_HOST = '47.98.187.217'
 MYSQL_DBNAME = 'hearthstonestation'
 MYSQL_USER = 'root'
 MYSQL_PWD = '666666'

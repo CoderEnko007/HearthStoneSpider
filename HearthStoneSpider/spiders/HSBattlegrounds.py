@@ -46,7 +46,7 @@ class HSBattlegroundsSpider(scrapy.Spider):
 
     def parse(self, response):
         if self.local_update:
-            jsonData = '{"render_as":"table","series":{"metadata":{"CURRENT_BATTLEGROUNDS_PATCH":{"min_mmr":{"ALL":434.0,"TOP_20_PERCENT":6741.0,"TOP_50_PERCENT":6094.0,"TOP_5_PERCENT":7687.0,"TOP_1_PERCENT":9920.0},"total_games":6862716},"LAST_7_DAYS":{"min_mmr":{"ALL":434.0,"TOP_50_PERCENT":6094.0,"TOP_20_PERCENT":6741.0,"TOP_5_PERCENT":7687.0,"TOP_1_PERCENT":9920.0},"total_games":4026019},"current_battlegrounds_patch_date":"2021-07-02"},"data":[]},"as_of":"2021-07-13T01:53:16Z"}'
+            jsonData = '{"render_as":"table","series":{"metadata":{"CURRENT_BATTLEGROUNDS_PATCH":{"min_mmr":{"TOP_50_PERCENT":2009.0,"ALL":390.0,"TOP_20_PERCENT":2477.0,"TOP_1_PERCENT":3950.0,"TOP_5_PERCENT":3187.0},"total_games":1136978},"LAST_7_DAYS":{"min_mmr":{"TOP_50_PERCENT":2009.0,"TOP_1_PERCENT":3950.0,"ALL":390.0,"TOP_20_PERCENT":2477.0,"TOP_5_PERCENT":3187.0},"total_games":2932606},"current_battlegrounds_patch_date":"2023-01-17T18:30:10+00:00"},"data":[]},"as_of":"2023-01-20T05:55:08Z"}'
         else:
             jsonData = response.css('pre::text').extract_first('')
         content = json.loads(jsonData).get('series').get('metadata')

@@ -114,6 +114,7 @@ class HSWinRateSpiderItem(scrapy.Item):
 
 class HSArenaCardsSpiderItem(scrapy.Item):
     dbfId = scrapy.Field()
+    card_id = scrapy.Field()
     classification = scrapy.Field()
     deck_pop = scrapy.Field()
     copies = scrapy.Field()

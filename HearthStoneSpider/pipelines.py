@@ -517,7 +517,7 @@ class MysqlTwistedPipeline(object):
         spider.scraped_count += 1
         print('scraped_count:{}, temp_count: {}, total_count:{}'.format(spider.scraped_count, spider.temp_count,
                                                                         spider.total_count))
-        # if spider.scraped_count >= spider.total_count-18:
+        # if spider.scraped_count >= spider.total_count-20:
         if spider.scraped_count == spider.total_count:
             fc = self.select(cursor, 'cards_arenacards', cols="name, dbfId, hsId, cost, rarity, cardClass, classification, ename, img_tile_link,"
                                                               "deck_pop, copies, deck_winrate, times_played, played_pop, played_winrate",
@@ -531,11 +531,13 @@ class MysqlTwistedPipeline(object):
 
     def update_arena_cards(self, cursor, item, spider):
         spider.temp_count += 1
-        if item.get('deck_pop') <= 0.01:
-            self.handle_arena_data(cursor, spider)
-            return
+        # if item.get('deck_pop') <= 0.01:
+        #     self.handle_arena_data(cursor, spider)
+        #     return
 
-        select_sql = "SELECT * FROM cards_hscards WHERE dbfId=%r" % item.get('dbfId')
+        # select_sql = "SELECT * FROM cards_hscards WHERE dbfId=%r" % item.get('dbfId')
+        select_sql = "SELECT * FROM cards_hscards WHERE hsId=%r" % item.get('card_id')
+        # print('aaa', select_sql)
         res = cursor.execute(select_sql)
         if res<=0:
             self.handle_arena_data(cursor, spider)
@@ -562,8 +564,11 @@ class MysqlTwistedPipeline(object):
         item['update_time'] = datetime.now().strftime(SQL_FULL_DATETIME)
 
         tableID = spider.ifanr.tablesID['arena_cards']
-        select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r and to_days(update_time)=to_days(now())" \
-                     % (item.get('dbfId'), item.get('classification'))
+        # select_sql = "SELECT * FROM cards_arenacards WHERE dbfId=%r and classification=%r and to_days(update_time)=to_days(now())" \
+        #              % (item.get('dbfId'), item.get('classification'))
+        select_sql = "SELECT * FROM cards_arenacards WHERE hsId=%r and classification=%r and to_days(update_time)=to_days(now())" \
+                     % (item.get('card_id'), item.get('classification'))
+        # print('bbb', select_sql)
         res = cursor.execute(select_sql)
         item['extra_data'] = 0 #统计用数据的标识，为false的需要同步到知晓云，否则只更新到阿里云
         data = item._values
@@ -572,12 +577,13 @@ class MysqlTwistedPipeline(object):
 
         if item['extra_data_flag'] == False:
             del item['extra_data_flag']
+            del item['card_id']
             if res>0:
                 res_card = cursor.fetchone()
                 del data['update_time']
                 print('start update', strftime("%Y-%m-%d %H:%M:%S", localtime()))
                 print('该单卡已经存在，更新', data.get('name'), data.get('classification'))
-                self.update(cursor, data, {'dbfId': data.get('dbfId'), 'classification': data.get('classification')}, 'cards_arenacards', today=True)
+                self.update(cursor, data, {'hsId': data.get('hsId'), 'classification': data.get('classification')}, 'cards_arenacards', today=True)
                 # print('end update', strftime("%Y-%m-%d %H:%M:%S", localtime()))
             else:
                 print('start insert', strftime("%Y-%m-%d %H:%M:%S", localtime()))
@@ -590,7 +596,7 @@ class MysqlTwistedPipeline(object):
     def single_arena_cards(self, cursor, item, spider):
         if item.get('deck_pop') <= 0.01:
             return
-        select_sql = "SELECT * FROM cards_hscards WHERE dbfId=%r" % item.get('dbfId')
+        select_sql = "SELECT * FROM cards_hscards WHERE hsId=%r" % item.get('card_id')
         res = cursor.execute(select_sql)
         if res<=0:
             return
